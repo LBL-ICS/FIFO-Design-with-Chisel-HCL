@@ -28,16 +28,22 @@ class house_HolderQR(row: Int,col: Int,bitwidth: Int) extends Module {
     val out_test3 = Output(UInt(bitwidth.W))
     val out_test4 = Output(UInt(bitwidth.W))
     val out_test5 = Output(UInt(bitwidth.W))
-    //val out_test6 = Output(UInt(bitwidth.W))
+    val out_test6 = Output(UInt(bitwidth.W))
+    val out_test7 = Output(UInt(bitwidth.W))
+    val out_test8 = Output(UInt(bitwidth.W))
+    val out_test9 = Output(UInt(bitwidth.W))
+    val out_test10 = Output(UInt(bitwidth.W))
+    val out_test11 = Output(UInt(bitwidth.W))
     //val in_enable = Input(Bool())
     //val out_enable = Output(Bool())
   })
   // val checker = RegInit(Vec((row * col) , UInt(bitwidth.W)))
   val holder = Reg(Vec((row), UInt(bitwidth.W)))
   val reflector = Reg(Vec((row), UInt(bitwidth.W)))
-  //val trailing = Reg(Vec((row), UInt(bitwidth.W)))
-  //val final_trailing = Reg(Vec((row), UInt(bitwidth.W)))
+  val trailing = Reg(Vec((row), UInt(bitwidth.W)))
+  val final_trailing = Reg(Vec((row), UInt(bitwidth.W)))
   val in_a_prime = Reg(Vec((row * col), UInt(bitwidth.W)))
+  val in_b_prime = Reg(Vec((row * col), UInt(bitwidth.W)))
   //val test_1 = Reg(Uint(4.W))
   var n = col
   var m = row
@@ -52,16 +58,16 @@ class house_HolderQR(row: Int,col: Int,bitwidth: Int) extends Module {
   //var s1 = Reg(UInt(bitwidth.W))
   val multiplier1 = Module(new FP_multiplier(bitwidth))
   val multiplier2 = Module(new FP_multiplier(bitwidth))
-  //val multiplier3 = Module(new FP_multiplier(bitwidth))
-  //val multiplier4 = Module(new FP_multiplier(bitwidth))
-  //val multiplier5 = Module(new FP_multiplier(bitwidth))
+  val multiplier3 = Module(new FP_multiplier(bitwidth))
+  val multiplier4 = Module(new FP_multiplier(bitwidth))
+  val multiplier5 = Module(new FP_multiplier(bitwidth))
   val adder1 = Module(new FP_adder(bitwidth))
   val adder2 = Module(new FP_adder(bitwidth))
   val adder3 = Module(new FP_adder(bitwidth))
-  //val adder4 = Module(new FP_adder(bitwidth))
+  val adder4 = Module(new FP_adder(bitwidth))
   //val adder5 = Module(new FP_adder(bitwidth))
   val sqrt1 = Module(new FP_square_root(bitwidth))
-  //val divider1 = Module(new FP_divider(bitwidth))
+  val divider1 = Module(new FP_divider(bitwidth))
 
 
   in_a_prime := io.in_a
@@ -83,21 +89,21 @@ class house_HolderQR(row: Int,col: Int,bitwidth: Int) extends Module {
 
 
     //hqr2
-  for (b <- kr until m) {
-    //d1 = holder(b) * holder(b) + d1
-    multiplier1.io.in_a := holder(b)
-    multiplier1.io.in_b := holder(b)
-    //printf(p"holder = $holder(b)")
-    adder1.io.in_a := multiplier1.io.out_s
-    adder1.io.in_b := d1
-    d1 := adder1.io.out_s
-  }
+    for (b <- kr until m) {
+      //d1 = holder(b) * holder(b) + d1
+      multiplier1.io.in_a := holder(b)
+      multiplier1.io.in_b := holder(b)
+      //printf(p"holder = $holder(b)")
+      adder1.io.in_a := multiplier1.io.out_s
+      adder1.io.in_b := d1
+      d1 := adder1.io.out_s
+    }
     io.out_test2 := d1
 
 
     //hqr3
-      sqrt1.io.in_a := d1
-      d2 := sqrt1.io.out_s
+    sqrt1.io.in_a := d1
+    d2 := sqrt1.io.out_s
 
     io.out_test3 := d2
 
@@ -106,15 +112,16 @@ class house_HolderQR(row: Int,col: Int,bitwidth: Int) extends Module {
     //hqr4
     reflector := holder
     //hqr5
-        adder2.io.in_a := holder(kr)
-        adder2.io.in_b := d2
-        reflector(kr) := adder2.io.out_s
+    adder2.io.in_a := holder(kr)
+    adder2.io.in_b := d2
+    reflector(kr) := adder2.io.out_s
     io.out_test4 := reflector(0)
 
 
     // hqr6
 
     for (b <- kr until m) {
+
       //d1 = holder(b) * holder(b) + d1
       multiplier2.io.in_a := reflector(b)
       multiplier2.io.in_b := reflector(b)
@@ -124,14 +131,15 @@ class house_HolderQR(row: Int,col: Int,bitwidth: Int) extends Module {
       d3 := adder3.io.out_s
     }
     io.out_test5 := d3
-/*
+
 
     //hqr7
     d3 = "b01000000110110101000001001000001".U
-    divider1.io.in_a :="b11000000000000000000000000000000".U
+    divider1.io.in_a := "b11000000000000000000000000000000".U
     divider1.io.in_b := d3
-    tk :=  divider1.io.out_s
+    tk := divider1.io.out_s
 
+    io.out_test6 := tk
 
     for (j <- k until n + 1) {
       jr = j - 1
@@ -142,47 +150,64 @@ class house_HolderQR(row: Int,col: Int,bitwidth: Int) extends Module {
         trailing(b) := in_a_prime(j_sig)
         j_sig = j_sig + col
       }
-        //hqr9
-        for (b <- kr until m) {
-          //d1 = holder(b) * holder(b) + d1
-          multiplier3.io.in_a := trailing(b)
-          multiplier3.io.in_b := reflector(b)
-          adder4.io.in_a := multiplier3.io.out_s
-          adder4.io.in_b := d4
-          d4 := adder4.io.out_s
-        }
-        //hqr10
-        multiplier4.io.in_a := d4
-        multiplier4.io.in_b := tk
-        d5 := multiplier4.io.out_s
+      io.out_test7 := trailing(1)
 
-        //hqr11
-        for (b <- kr until m) {
-          multiplier5.io.in_a := d5
-          multiplier5.io.in_b := reflector(b)
-          adder4.io.in_a := multiplier5.io.out_s
-          adder4.io.in_b := trailing(b)
-          final_trailing(b) := adder4.io.out_s
-        }
+      //hqr9
+      for (b <- kr until m) {
+        //d1 = holder(b) * holder(b) + d1
+        multiplier3.io.in_a := trailing(b)
+        multiplier3.io.in_b := reflector(b)
+        adder4.io.in_a := multiplier3.io.out_s
+        adder4.io.in_b := d4
+        d4 := adder4.io.out_s
 
-        //hqr12
-        j_sig = (col * (k - 1)) + k - 1
-        for (b <- kr until m) {
-          in_a_prime(j_sig) := final_trailing(b)
-          j_sig = j_sig + col
-        }
-        count = 0
+      }
+      io.out_test8 := d4
 
- */
-     // }
+
+      //hqr10
+      multiplier4.io.in_a := d4
+      multiplier4.io.in_b := tk
+      d5 := multiplier4.io.out_s
+
+      io.out_test9 := d5
+
+      //hqr11
+      for (b <- kr until m) {
+        multiplier5.io.in_a := d5
+        multiplier5.io.in_b := reflector(b)
+        adder4.io.in_a := multiplier5.io.out_s
+        adder4.io.in_b := trailing(b)
+        final_trailing(b) := adder4.io.out_s
+      }
+      io.out_test10 := final_trailing(0)
+
+
+      //hqr12
+      j_sig = (col * (jr)) - 1
+      if(j_sig == -1){
+        j_sig = 0
+      }
+      for (b <- kr until m) {
+        println(b)
+        in_b_prime(j_sig) := final_trailing(b)
+        j_sig = j_sig + col
+      }
+      count = 0
+      io.out_test11 := in_b_prime(1)
+
+
     }
 
 
+  }
 
 
 
 
-    io.out := in_a_prime
+
+
+    io.out := in_b_prime
     //io.out_test := holder(0)
 
   }
@@ -207,7 +232,19 @@ class house_HolderQR(row: Int,col: Int,bitwidth: Int) extends Module {
         c.clock.step(2)
         //c.io.out_test4.expect("b01000000000110101000001001000001".U)
         c.clock.step(1)
-        c.io.out_test5.expect("b01000000110110101000001001000001".U)
+        //c.io.out_test5.expect("b01000000110110101000001001000001".U)
+        c.clock.step(6)
+        //c.io.out_test6.expect("b10111110100101011111011001000000".U)
+        c.clock.step(2)
+        //c.io.out_test7.expect("b00111111100000000000000000000000".U)
+        c.clock.step(2)
+        //c.io.out_test8.expect("b00111111100000000000000000000000".U)
+        c.clock.step(1)
+        //c.io.out_test9.expect("b00111111100000000000000000000000".U)
+        c.clock.step(4)
+        //c.io.out_test10.expect("b11000000011000100100010110100010".U)
+        c.clock.step(5)
+        c.io.out_test11.expect("b11000000011000100100010110100010".U)
       }
       println("SUCCESS!!")
 
