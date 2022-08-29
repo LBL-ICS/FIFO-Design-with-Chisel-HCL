@@ -1076,4 +1076,21 @@ object FPArithmetic {
     multiplier.in_b := reciprocal.out_s
     io.out_s := multiplier.out_s // should have latency of 6 cycles
   }
+
+  class FP_dDot(bw:Int) extends Module{
+    val io = IO{new Bundle() {
+      val in_a = Input(UInt(bw.W))
+      val in_b = Input(UInt(bw.W))
+      val in_c = Input(UInt(bw.W))
+      val out_s = Output(UInt(bw.W))
+    }}
+    val multiplier = Module(new FP_multiplier(bw)).io
+    val adder = Module(new FP_adder(bw)).io
+
+      multiplier.in_a := io.in_a
+      multiplier.in_b := io.in_b
+      adder.in_a := multiplier.out_s
+      adder.in_b := io.in_c
+      io.out_s := adder.out_s
+  }
 }
