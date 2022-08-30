@@ -1093,4 +1093,38 @@ object FPArithmetic {
       adder.in_b := io.in_c
       io.out_s := adder.out_s
   }
+
+  class FP_dDot_2(bw:Int,level:Int) extends Module{
+    val io = IO{new Bundle() {
+      val in_a = Input(UInt(bw.W))
+      val in_b = Input(UInt(bw.W))
+      val out_s = Output(UInt(bw.W))
+    }}
+    val multiply_layer = for(i <- 0 until level)yield{
+      val multiply = Module(new FP_multiplier(bw)).io
+      multiply
+    }
+      val adder_sequence = for (i <- 0 until level/2) yield {
+        val adder = Module(new FP_adder(bw)).io
+        adder
+      }
+
+
+
+    for(i <- 0 until level){
+      multiply_layer(i).in_a := io.in_a
+      multiply_layer(i).in_b := io.in_b
+    }
+
+
+      adder_sequence(0).in_a := multiply_layer(0).out_s
+      adder_sequence(0).in_b := multiply_layer(1).out_s
+
+
+
+
+
+    io.out_s := adder_sequence(0).out_s
+  }
+
 }
