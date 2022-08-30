@@ -244,38 +244,49 @@ class FP_dDot_2(bw:Int,level:Int) extends Module{
     val out_test = Output(UInt(bw.W))
   }}
   var d1 = RegInit(0.U(bw.W))
-  var adder_math = level/2
+  var adder_math = level
   var adder_creator = 0
   var stages = 0
+  var stages_2 = level
+  var stage_pointer = 0
+  var adder_count = 0
+  var odd_or_even = false
 
+  if(stages_2 % 2 != 0) {
+    odd_or_even = true
+  }
+
+  // set up adders
   while (adder_math != 1){
-    adder_math = adder_math /2
     if(adder_math % 2 == 0){
+      adder_math = adder_math /2
 
-    adder_creator = adder_creator + adder_math
+    }
+    else if(adder_math == 1){
 
     }
     else{
-      adder_creator = adder_creator + adder_math + 1
-      adder_math = adder_math + 1
-      println(adder_math)
+      adder_math = adder_math/2 + 1
+
     }
-
     stages = stages + 1
-
+    adder_creator = adder_math + adder_creator
+    //println(adder_creator)
   }
 
+
+// gets mulit and adders
   val multiply_layer = for(i <- 0 until level)yield{
     val multiply = Module(new FP_multiplier(bw)).io
     multiply
   }
-  val adder_sequence = for (i <- 0 until level/2) yield {
+  val adder_sequence = for (i <- 0 until adder_creator) yield {
     val adder = Module(new FP_adder(bw)).io
     adder
   }
 
 
-
+//multplies the numbers
   for(i <- 0 until level){
     multiply_layer(i).in_a := io.in_a(i)
     multiply_layer(i).in_b := io.in_b(i)
@@ -284,14 +295,89 @@ class FP_dDot_2(bw:Int,level:Int) extends Module{
     io.out_test := d1
 
 
-  adder_sequence(0).in_a := multiply_layer(0).out_s
-  adder_sequence(0).in_b := multiply_layer(1).out_s
+  if (odd_or_even){
+    stages_2 = stages_2 - 1
+  }
+
+  //adders first level
+  for(i <- 0 until stages_2 by 2) {
+    adder_sequence(adder_count).in_a := multiply_layer(i).out_s
+    adder_sequence(adder_count).in_b := multiply_layer(i+1).out_s
+    adder_count = adder_count + 1
+  }
+  println(adder_count)
+  if(odd_or_even){
+    stages_2 = stages_2 + 1
+    adder_sequence(adder_count).in_a := multiply_layer(stages_2-1).out_s
+    adder_sequence(adder_count).in_b := 0.U
+    adder_count = adder_count + 1
+  }
+if(adder_count > 1) {
+  adder_sequence(adder_count).in_a := adder_sequence(adder_count - 1).out_s
+  adder_sequence(adder_count).in_b := adder_sequence(adder_count - 2).out_s
+  adder_count = adder_count+1
+}
+else{
+
+}
+
+
+println(adder_count)
+    /*
+
+  for(r <- 1 until stages) {
+
+
+    if(stages_2 % 2 == 0) {
+      stages_2 = stages_2 / 2
+      odd_or_even = false
+    }
+    else if(stages_2 == 1) {
+      stages_2 = 1
+      odd_or_even = false
+    }
+    else {
+      stages_2 = stages_2/2 + 1
+      odd_or_even = true
+    }
+
+
+
+
+    if(odd_or_even){
+    for(i <- 0 until stages_2 by 2){
+
+
+
+    }
+
+
+    }
+    else{
+      if(stages_2 == 1){
+
+
+      }
+      else{
+
+
+      }
+    }
+  }
+
+
+
+
+     */
 
 
 
 
 
-  io.out_s := adder_sequence(0).out_s
+
+
+
+  io.out_s := adder_sequence(adder_count-1).out_s
 }
 
 
@@ -336,12 +422,14 @@ class FP_dDot_2(bw:Int,level:Int) extends Module{
         //c.io.out_test4.expect("b01000000101000111111000001101111".U)
 
 
-      test(new FP_dDot_2(32, 6)) { c =>
+      test(new FP_dDot_2(32, 2)) { c =>
         c.io.in_a(0).poke("b01000000100000000000000000000000".U)
         c.io.in_b(0).poke("b00111111100000000000000000000000".U)
         c.io.in_a(1).poke("b00111111100000000000000000000000".U)
         c.io.in_b(1).poke("b01000000100000000000000000000000".U)
-        c.clock.step(2)
+        //c.io.in_a(2).poke("b00111111100000000000000000000000".U)
+        //c.io.in_b(2).poke("b01000000100000000000000000000000".U)
+        c.clock.step(3)
         c.io.out_s.expect("b01000001000000000000000000000000".U)
       }
       println("SUCCESS!!")
