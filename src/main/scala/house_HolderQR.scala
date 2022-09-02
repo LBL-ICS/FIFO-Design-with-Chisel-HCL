@@ -248,9 +248,10 @@ class FP_dDot_2(bw:Int,level:Int) extends Module{
   var adder_creator = 0
   var stages = 0
   var stages_2 = level
-  var stage_pointer = 0
   var adder_count = 0
   var odd_or_even = false
+  var total_adders = 0
+  var p_adders = 0
 
   if(stages_2 % 2 != 0) {
     odd_or_even = true
@@ -269,11 +270,11 @@ class FP_dDot_2(bw:Int,level:Int) extends Module{
       adder_math = adder_math/2 + 1
 
     }
+    println(adder_math + "Math")
     stages = stages + 1
     adder_creator = adder_math + adder_creator
-    //println(adder_creator)
   }
-
+//println(adder_creator + "CURRENT ADDERS")
 
 // gets mulit and adders
   val multiply_layer = for(i <- 0 until level)yield{
@@ -288,13 +289,13 @@ class FP_dDot_2(bw:Int,level:Int) extends Module{
 
 //multplies the numbers
   for(i <- 0 until level){
-    multiply_layer(i).in_a := io.in_a(i)
-    multiply_layer(i).in_b := io.in_b(i)
+    multiply_layer(i).in_a := io.in_a(0)
+    multiply_layer(i).in_b := io.in_b(0)
     d1 := multiply_layer(i).out_s
   }
     io.out_test := d1
 
-
+  //println(stages_2)
   if (odd_or_even){
     stages_2 = stages_2 - 1
   }
@@ -305,70 +306,89 @@ class FP_dDot_2(bw:Int,level:Int) extends Module{
     adder_sequence(adder_count).in_b := multiply_layer(i+1).out_s
     adder_count = adder_count + 1
   }
-  println(adder_count)
+  //println(adder_count)
   if(odd_or_even){
-    stages_2 = stages_2 + 1
-    adder_sequence(adder_count).in_a := multiply_layer(stages_2-1).out_s
+    adder_sequence(adder_count).in_a := multiply_layer(stages_2).out_s
     adder_sequence(adder_count).in_b := 0.U
     adder_count = adder_count + 1
+    stages_2 = stages_2 + 2
   }
-if(adder_count > 1) {
-  adder_sequence(adder_count).in_a := adder_sequence(adder_count - 1).out_s
-  adder_sequence(adder_count).in_b := adder_sequence(adder_count - 2).out_s
-  adder_count = adder_count+1
-}
-else{
+  println(adder_count + " Input Adder")
+  println(stages_2 + " Input stage")
+  println(stages + " Input loop")
 
-}
-
-
-println(adder_count)
-    /*
 
   for(r <- 1 until stages) {
-
-
-    if(stages_2 % 2 == 0) {
+    if (stages_2 % 2 == 0) {
       stages_2 = stages_2 / 2
       odd_or_even = false
     }
-    else if(stages_2 == 1) {
-      stages_2 = 1
+    else if (stages_2 == 1 ) {
+      stages_2 = 0
       odd_or_even = false
     }
+
+    else if(stages_2/2 == 1){
+      if(r+1 == stages) {
+        stages_2 = 1
+        odd_or_even = false
+      }
+      else {
+        stages_2 = stages_2 / 2
+        odd_or_even = true
+      }
+    }
     else {
-      stages_2 = stages_2/2 + 1
+      stages_2 = stages_2 / 2
       odd_or_even = true
     }
+    println(stages_2 + " Recur Stage")
+    total_adders = stages_2 + total_adders
+    println(odd_or_even)
+    //println(stages_2)
+    //println(total_adders)
+    //println(p_adders +"P")
+    //println(total_adders + "T")
+    //println(total_adders)
 
+    if (odd_or_even){
+      total_adders= total_adders - 1
+    }
 
-
-
+    println(total_adders + "T")
+      for (i <- p_adders until total_adders by 2){
+       // println(adder_count)
+        println(i + "P")
+        adder_sequence(adder_count).in_a := adder_sequence(i).out_s
+        if(i + 1 >= total_adders){
+          if(stages_2 != 1){
+            adder_sequence(adder_count).in_b := 0.U
+            stages_2 = stages_2 + 1
+          }
+          else{
+            adder_sequence(adder_count).in_b := adder_sequence(i + 1).out_s
+          }
+        }else {
+          adder_sequence(adder_count).in_b := adder_sequence(i + 1).out_s
+        }
+        adder_count = adder_count + 1
+    }
+    //println(adder_count)
     if(odd_or_even){
-    for(i <- 0 until stages_2 by 2){
-
-
-
+      adder_sequence(adder_count).in_a := adder_sequence(total_adders).out_s
+      adder_sequence(adder_count).in_b := 0.U
+      adder_count = adder_count + 1
+      total_adders = total_adders + 2
+      //stages_2 = stages_2 + 1
     }
-
-
-    }
-    else{
-      if(stages_2 == 1){
-
-
-      }
-      else{
-
-
-      }
-    }
+    p_adders = total_adders
+    println(stages_2 + "After Stage")
+    println("________________________________")
   }
 
 
 
 
-     */
 
 
 
@@ -376,7 +396,7 @@ println(adder_count)
 
 
 
-
+//adder - 1 for overflow
   io.out_s := adder_sequence(adder_count-1).out_s
 }
 
@@ -422,14 +442,79 @@ println(adder_count)
         //c.io.out_test4.expect("b01000000101000111111000001101111".U)
 
 
-      test(new FP_dDot_2(32, 2)) { c =>
-        c.io.in_a(0).poke("b01000000100000000000000000000000".U)
-        c.io.in_b(0).poke("b00111111100000000000000000000000".U)
-        c.io.in_a(1).poke("b00111111100000000000000000000000".U)
-        c.io.in_b(1).poke("b01000000100000000000000000000000".U)
-        //c.io.in_a(2).poke("b00111111100000000000000000000000".U)
-        //c.io.in_b(2).poke("b01000000100000000000000000000000".U)
-        c.clock.step(3)
+      test(new FP_dDot_2(32, 1559)) { c =>
+        c.io.in_a(0).poke("b00111111100000000000000000000000".U)
+        c.io.in_b(0).poke("b01000000100000000000000000000000".U)
+        /*
+               c.io.in_a(1).poke("b00111111100000000000000000000000".U)
+               c.io.in_b(1).poke("b01000000100000000000000000000000".U)
+
+               c.io.in_a(2).poke("b01000000100000000000000000000000".U)
+               c.io.in_b(2).poke("b00111111100000000000000000000000".U)
+
+               c.io.in_a(3).poke("b00111111100000000000000000000000".U)
+               c.io.in_b(3).poke("b01000000100000000000000000000000".U)
+
+               c.io.in_a(4).poke("b00111111100000000000000000000000".U)
+               c.io.in_b(4).poke("b01000000100000000000000000000000".U)
+
+               c.io.in_a(5).poke("b00111111100000000000000000000000".U)
+               c.io.in_b(5).poke("b01000000100000000000000000000000".U)
+
+               c.io.in_a(6).poke("b00111111100000000000000000000000".U)
+               c.io.in_b(6).poke("b01000000100000000000000000000000".U)
+
+               c.io.in_a(7).poke("b00111111100000000000000000000000".U)
+               c.io.in_b(7).poke("b01000000100000000000000000000000".U)
+
+               c.io.in_b(8).poke("b01000000100000000000000000000000".U)
+               c.io.in_a(8).poke("b00111111100000000000000000000000".U)
+
+               c.io.in_b(9).poke("b01000000100000000000000000000000".U)
+               c.io.in_a(9).poke("b00111111100000000000000000000000".U)
+
+               c.io.in_b(10).poke("b01000000100000000000000000000000".U)
+               c.io.in_a(10).poke("b00111111100000000000000000000000".U)
+
+               c.io.in_b(11).poke("b01000000100000000000000000000000".U)
+               c.io.in_a(11).poke("b00111111100000000000000000000000".U)
+
+
+               c.io.in_a(12).poke("b00111111100000000000000000000000".U)
+               c.io.in_b(12).poke("b01000000100000000000000000000000".U)
+
+               //c.io.in_a(13).poke("b01000000100000000000000000000000".U)
+               //c.io.in_b(13).poke("b00111111100000000000000000000000".U)
+
+               //c.io.in_a(14).poke("b00111111100000000000000000000000".U)
+               //c.io.in_b(14).poke("b01000000100000000000000000000000".U)
+
+               //c.io.in_a(15).poke("b01000000100000000000000000000000".U)
+               //c.io.in_b(15).poke("b00111111100000000000000000000000".U)
+
+               //c.io.in_a(16).poke("b00111111100000000000000000000000".U)
+               //c.io.in_b(16).poke("b01000000100000000000000000000000".U)
+
+               //c.io.in_a(17).poke("b00111111100000000000000000000000".U)
+               //c.io.in_b(17).poke("b01000000100000000000000000000000".U)
+
+               //c.io.in_a(18).poke("b00111111100000000000000000000000".U)
+               //c.io.in_b(18).poke("b01000000100000000000000000000000".U)
+
+               //c.io.in_a(19).poke("b00111111100000000000000000000000".U)
+               //c.io.in_b(19).poke("b01000000100000000000000000000000".U)
+               //c.io.in_a(20).poke("b00111111100000000000000000000000".U)
+               //c.io.in_b(20).poke("b01000000100000000000000000000000".U)
+               //c.io.in_b(21).poke("b01000000100000000000000000000000".U)
+               //c.io.in_a(21).poke("b00111111100000000000000000000000".U)
+               //c.io.in_b(22).poke("b01000000100000000000000000000000".U)
+               //c.io.in_a(22).poke("b00111111100000000000000000000000".U)
+               //c.io.in_b(23).poke("b01000000100000000000000000000000".U)
+               //c.io.in_a(23).poke("b00111111100000000000000000000000".U)
+
+
+                */
+      c.clock.step(11)
         c.io.out_s.expect("b01000001000000000000000000000000".U)
       }
       println("SUCCESS!!")
