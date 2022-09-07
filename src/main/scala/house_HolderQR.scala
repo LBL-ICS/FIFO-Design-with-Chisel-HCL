@@ -3,6 +3,7 @@ import chisel3._
 import chisel3.util._
 import IEEEConversions.FPConvert._
 import Chisel.{MuxLookup, log2Ceil, resetToBool}
+import FloatingPointDesigns.FPArithmetic
 import FloatingPointDesigns.FPArithmetic.FP_multiplier
 import FloatingPointDesigns.FPArithmetic.FP_adder
 import FloatingPointDesigns.FPArithmetic.FP_square_root
@@ -13,10 +14,8 @@ import chisel3._
 import chisel3.aop.Select.When
 import chisel3.tester._
 import chisel3.tester.RawTester.test
+import firrtl.Utils.True
 import firrtl._
-
-
-
 
 import scala.collection._
 
@@ -246,21 +245,70 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
     val Vk = Input(Bool())
     //val Tr = Input(Bool())
     //val h_count = Input(UInt)
+    val out_test = Output(UInt(bitwidth.W))
     val out_s = Output(Vec((row), UInt(bitwidth.W)))
   })
+  val reg_array_h = Reg(Vec((row), UInt(bitwidth.W)))
+  val reg_1 = Reg(UInt(bitwidth.W))
+  val tk = Reg(UInt(bitwidth.W))
+  //val reg_arrays_h = Reg(Vec((row), UInt(bitwidth.W)))
   val w0 = Wire(Vec((row), UInt(bitwidth.W)))
+  val w1 = Wire(Vec((row), UInt(bitwidth.W)))
+  //val d1 = Wire(UInt(bitwidth.W))
+  //val d2 = Wire(UInt(bitwidth.W))
+  val dDot = Module(new FP_dDot_2(bitwidth,row))
+  //val sqrt = Module(new FP_square_root(bitwidth))
+  //val sign = Module(new sign_Calculator(bitwidth))
+
+
+
+
+  reg_array_h := io.reg_array
+
+
+//Mux 1 for ddot
   when(io.Tk === true.B){
   w0 := io.col_1
+    w1 := io.col_1
   }.elsewhen(io.Vk === true.B){
-    w0 := io.reg_array
+    w0 := reg_array_h
+    w1 := reg_array_h
   }.otherwise{
-    w0 := io.reg_array
+    w0 := reg_array_h
+    w1 := reg_array_h
+  }
+//ddot
+  dDot.io.in_a := w0
+  dDot.io.in_b := w1
+
+//mux 2 after ddot
+  when(io.Tk === true.B){
+    // defines first part
+    val d1 = Wire(UInt(bitwidth.W))
+    val d2 = Wire(UInt(bitwidth.W))
+    val sqrt = Module(new FP_square_root(bitwidth))
+    val sign = Module(new sign_Calculator(bitwidth))
+  d1 := dDot.io.out_s
+    //square root
+    sqrt.io.in_a := d1
+    d2 := sqrt.io.out_s
+    //sign
+    sign.io.in_a := reg_array_h(0)
+    sign.io.in_b := d2
+    reg_1 := sign.io.out_s
+  }.elsewhen(io.Vk === true.B){
+    val divide = Module(new FP_divider(bitwidth))
+    divide.io.in_a := "b11000000000000000000000000000000".U
+    divide.io.in_b := dDot.io.out_s
+    tk := divide.io.out_s
+  }.otherwise{
   }
 
 
-
-
-
+  when(io.Vk === true.B){
+    reg_array_h(0) := reg_1
+  }
+  io.out_test := reg_1
 
 io.out_s := w0
 
@@ -299,7 +347,7 @@ class FP_dDot_2(bw:Int,level:Int) extends Module{
       adder_math = adder_math/2 + 1
 
     }
-    println(adder_math + "Math")
+    //println(adder_math + "Math")
     stages = stages + 1
     adder_creator = adder_math + adder_creator
   }
@@ -341,9 +389,9 @@ class FP_dDot_2(bw:Int,level:Int) extends Module{
     adder_count = adder_count + 1
     stages_2 = stages_2 + 2
   }
-  println(adder_count + " Input Adder")
-  println(stages_2 + " Input stage")
-  println(stages + " Input loop")
+  //println(adder_count + " Input Adder")
+  //println(stages_2 + " Input stage")
+  //println(stages + " Input loop")
 
 
   for(r <- 1 until stages) {
@@ -372,7 +420,7 @@ class FP_dDot_2(bw:Int,level:Int) extends Module{
     }
     println(stages_2 + " Recur Stage")
     total_adders = stages_2 + total_adders
-    println(odd_or_even)
+    //println(odd_or_even)
     //println(stages_2)
     //println(total_adders)
     //println(p_adders +"P")
@@ -410,8 +458,8 @@ class FP_dDot_2(bw:Int,level:Int) extends Module{
       //stages_2 = stages_2 + 1
     }
     p_adders = total_adders
-    println(stages_2 + "After Stage")
-    println("________________________________")
+    //println(stages_2 + "After Stage")
+    //println("________________________________")
   }
 
 
@@ -511,8 +559,15 @@ io.out_s(i) := adder_layer(i).out_s
         c.io.reg_array(1).poke("b01000000100000000000000000000000".U)
         c.io.Tk.poke(true.B)
         c.io.Vk.poke(false.B)
-        c.clock.step(1)
-        c.io.out_s(0).expect("b01000000100000000000000000000000".U)
+        c.clock.step(13)
+        c.io.Tk.poke(false.B)
+        c.io.Vk.poke(true.B)
+        c.clock.step(12)
+        c.io.Tk.poke(false.B)
+        c.io.Vk.poke(false.B)
+
+        //c.io.out_s(0).expect("b01000000100000000000000000000000".U)
+        c.io.out_test.expect("b01000000100000000000000000000000".U)
         //c.io.in_a(2).poke("b00111111100000000000000000000000".U)
         //c.io.in_a(3).poke("b01000000100000000000000000000000".U)
 
