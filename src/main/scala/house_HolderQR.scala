@@ -20,7 +20,8 @@ import firrtl._
 
 import scala.collection._
 
-class house_HolderQR(row: Int,col: Int,bitwidth: Int) extends Module {
+class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
+  /*
   val io = IO(new Bundle() {
     val in_a = Input(Vec((row * col), UInt(bitwidth.W)))
     val out = Output(Vec((row * col), UInt(bitwidth.W)))
@@ -233,6 +234,36 @@ class house_HolderQR(row: Int,col: Int,bitwidth: Int) extends Module {
 
   io.out := in_b_prime
   //io.out_test := holder(0)
+
+   */
+
+
+  val io = IO(new Bundle() {
+    val col_1 = Input(Vec((row), UInt(bitwidth.W)))
+    val reg_array = Input(Vec((row), UInt(bitwidth.W)))
+   // val reg_arrays = Input(Vec((row*col), UInt(bitwidth.W)))
+    val Tk = Input(Bool())
+    val Vk = Input(Bool())
+    //val Tr = Input(Bool())
+    //val h_count = Input(UInt)
+    val out_s = Output(Vec((row), UInt(bitwidth.W)))
+  })
+  val w0 = Wire(Vec((row), UInt(bitwidth.W)))
+  when(io.Tk === true.B){
+  w0 := io.col_1
+  }.elsewhen(io.Vk === true.B){
+    w0 := io.reg_array
+  }.otherwise{
+    w0 := io.reg_array
+  }
+
+
+
+
+
+
+io.out_s := w0
+
   }
 
 
@@ -241,9 +272,7 @@ class FP_dDot_2(bw:Int,level:Int) extends Module{
     val in_a = Input(Vec((level), UInt(bw.W)))
     val in_b = Input(Vec((level), UInt(bw.W)))
     val out_s = Output(UInt(bw.W))
-    val out_test = Output(UInt(bw.W))
   }}
-  var d1 = RegInit(0.U(bw.W))
   var adder_math = level
   var adder_creator = 0
   var stages = 0
@@ -289,11 +318,10 @@ class FP_dDot_2(bw:Int,level:Int) extends Module{
 
 //multplies the numbers
   for(i <- 0 until level){
-    multiply_layer(i).in_a := io.in_a(0)
-    multiply_layer(i).in_b := io.in_b(0)
-    d1 := multiply_layer(i).out_s
+    multiply_layer(i).in_a := io.in_a(i)
+    multiply_layer(i).in_b := io.in_b(i)
   }
-    io.out_test := d1
+
 
   //println(stages_2)
   if (odd_or_even){
@@ -399,52 +427,101 @@ class FP_dDot_2(bw:Int,level:Int) extends Module{
 //adder - 1 for overflow
   io.out_s := adder_sequence(adder_count-1).out_s
 }
+class sign_Calculator(bw:Int)extends Module{
+  val io = IO{new Bundle() {
+    val in_a = Input(UInt(bw.W))
+    val in_b = Input(UInt(bw.W))
+    val out_s = Output(UInt(bw.W))
+  }}
+  val adder = Module(new FP_adder(bw)).io
+  val subber = Module(new FP_subber(bw)).io
+  // loads up both hardware
+
+  adder.in_a := io.in_a
+  adder.in_b := io.in_b
+  subber.in_a := io.in_a
+  subber.in_b := io.in_b
+// checks sign bit
+  when(io.in_a >= "b10000000000000000000000000000000".U){
+    io.out_s := subber.out_s
+
+  }
+    .otherwise {
+      io.out_s := adder.out_s
+    }
+
+
+
+
+}
+class house_Divider(bw:Int)extends Module {
+  val io = IO {
+    new Bundle() {
+      val in_a = Input(UInt(bw.W))
+      val out_s = Output(UInt(bw.W))
+    }
+  }
+  val divide = Module(new FP_divider(bw)).io
+  divide.in_a := "b11000000000000000000000000000000".U
+  divide.in_b := io.in_a
+  io.out_s := divide.out_s
+}
+class axpy(bw:Int,level:Int)extends Module {
+  val io = IO {
+    new Bundle() {
+      val in_a = Input(UInt(bw.W))
+      val in_b = Input(Vec((level), UInt(bw.W)))
+      val in_c = Input(Vec((level), UInt(bw.W)))
+      val out_s = Output(Vec((level), UInt(bw.W)))
+    }
+  }
+
+  val multiply_layer = for(i <- 0 until level)yield{
+    val multiply = Module(new FP_multiplier(bw)).io
+    multiply
+  }
+  val adder_layer = for (i <- 0 until level) yield {
+    val adder = Module(new FP_adder(bw)).io
+    adder
+  }
+
+  for(i <- 0 until level){
+    multiply_layer(i).in_a := io.in_a
+    multiply_layer(i).in_b := io.in_b(i)
+  }
+  for(i <- 0 until level){
+    adder_layer(i).in_a :=  multiply_layer(i).out_s
+    adder_layer(i).in_b := io.in_c(i)
+  }
+
+
+  for(i <- 0 until level){
+io.out_s(i) := adder_layer(i).out_s
+  }
+}
 
 
   object tester_1 {
 
     def main(args: Array[String]): Unit = {
-      //test(new house_HolderQR(2, 2, 32)) { c =>
-        //c.io.in_a(0).poke("b01000000100000000000000000000000".U)
-        //c.io.in_a(1).poke("b00111111100000000000000000000000".U)
+      test(new house_HolderQR(2, 2, 32)) { c =>
+        c.io.col_1(0).poke("b01000000100000000000000000000000".U)
+        c.io.col_1(1).poke("b00111111100000000000000000000000".U)
+        c.io.reg_array(0).poke("b00111111100000000000000000000000".U)
+        c.io.reg_array(1).poke("b01000000100000000000000000000000".U)
+        c.io.Tk.poke(true.B)
+        c.io.Vk.poke(false.B)
+        c.clock.step(1)
+        c.io.out_s(0).expect("b01000000100000000000000000000000".U)
         //c.io.in_a(2).poke("b00111111100000000000000000000000".U)
         //c.io.in_a(3).poke("b01000000100000000000000000000000".U)
-        //c.clock.step(12)
-        //c.clock.step(2)
-        //c.io.out(2).expect("b00000000000000000000000000000000".U)
-        //c.io.out(1).expect("b01000000100000000000000000000000".U)
-       // c.io.out_test.expect("b00111111100000000000000000000000".U)
-        //c.clock.step(5)
-        //c.io.out_test2.expect("b01000000000000000000000000000000".U)
-        //c.clock.step(11)
-        //c.io.out_test3.expect("b00111111101101010000010010000001".U)
-        //c.clock.step(2)
-        //c.io.out_test4.expect("b01000000000110101000001001000001".U)
-        //c.clock.step(1)
-        //c.io.out_test5.expect("b01000000110110101000001001000001".U)
-        //c.io.out_test6.expect("b10111110100101011111011001000000".U)
-        //c.clock.step(1)
-        //c.io.out_test7.expect("b00111111100000000000000000000000".U)
-        //c.io.out_test8.expect("b01000000010110101000001001000001".U)
-        //c.clock.step(1)
-        //c.io.out_test9.expect("b00111111100000000000000000000000".U)
-        //c.clock.step(4)
-        //c.io.out_test10.expect("b11000000011000100100010110100010".U)
-        //c.clock.step(5)
-        //c.io.out_test11.expect("b11000000011000100100010110100010".U)
 
 
-        //NEXT TEST
-        //c.clock.step(38)
-        //c.io.out_test2.expect("b01000001100010000000000000000000".U)
-        //c.clock.step(12)
-        //c.io.out_test3.expect("b01000000100000111111000001101111".U)
-        //c.io.out_test4.expect("b01000000101000111111000001101111".U)
 
 
-      test(new FP_dDot_2(32, 1559)) { c =>
-        c.io.in_a(0).poke("b00111111100000000000000000000000".U)
-        c.io.in_b(0).poke("b01000000100000000000000000000000".U)
+      //test(new FP_dDot_2(32, 2)) { c =>
+        //c.io.in_a(0).poke("b00111111100000000000000000000000".U)
+       // c.io.in_b(0).poke("b01000000100000000000000000000000".U)
         /*
                c.io.in_a(1).poke("b00111111100000000000000000000000".U)
                c.io.in_b(1).poke("b01000000100000000000000000000000".U)
@@ -514,8 +591,30 @@ class FP_dDot_2(bw:Int,level:Int) extends Module{
 
 
                 */
-      c.clock.step(11)
-        c.io.out_s.expect("b01000001000000000000000000000000".U)
+    //  c.clock.step(10)
+       // c.io.out_s.expect("b01000001000000000000000000000000".U)
+      //}
+
+     // test(new house_Divider(32)) { c =>
+       // c.io.in_a.poke("b01000001100101111000110111101101".U)
+        //  c.clock.step(6)
+        // c.io.out_s.expect("b01000001000000000000000000000000".U)
+      //}
+/*
+      test(new axpy(32,2)) { c =>
+        c.io.in_a.poke("b01000001100101111000110111101101".U)
+        c.io.in_b(0).poke("b11000001100101111000110111101101".U)
+        c.io.in_b(1).poke("b01000001000100000000000000000000".U)
+        c.io.in_c(0).poke("b01000001100101111000110111101101".U)
+        c.io.in_c(1).poke("b01000001100101111000110111101101".U)
+
+
+
+        c.clock.step(2)
+
+        c.io.out_s(0).expect("b01000001000000000000000000000000".U)
+        */
+
       }
       println("SUCCESS!!")
 
