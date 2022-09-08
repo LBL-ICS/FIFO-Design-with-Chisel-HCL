@@ -240,17 +240,21 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
   val io = IO(new Bundle() {
     val col_1 = Input(Vec((row), UInt(bitwidth.W)))
     val reg_array = Input(Vec((row), UInt(bitwidth.W)))
-   // val reg_arrays = Input(Vec((row*col), UInt(bitwidth.W)))
+    val reg_arrays = Input(Vec((row*col), UInt(bitwidth.W)))
     val Tk = Input(Bool())
     val Vk = Input(Bool())
-    //val Tr = Input(Bool())
+    val Tr = Input(Bool())
     //val h_count = Input(UInt)
     val out_test = Output(UInt(bitwidth.W))
     val out_s = Output(Vec((row), UInt(bitwidth.W)))
   })
   val reg_array_h = Reg(Vec((row), UInt(bitwidth.W)))
+  val reg_arrays_h = Reg(Vec((row * col), UInt(bitwidth.W)))
+  val reg_arrays_h_b = Reg(Vec((col), UInt(bitwidth.W)))
   val reg_1 = Reg(UInt(bitwidth.W))
+  val reg_2 = Reg(Vec((row), UInt(bitwidth.W)))
   val tk = Reg(UInt(bitwidth.W))
+  var level = 0
   //val reg_arrays_h = Reg(Vec((row), UInt(bitwidth.W)))
   val w0 = Wire(Vec((row), UInt(bitwidth.W)))
   val w1 = Wire(Vec((row), UInt(bitwidth.W)))
@@ -262,19 +266,23 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
 
 
 
-
   reg_array_h := io.reg_array
+  reg_arrays_h := io.reg_arrays
 
 
-//Mux 1 for ddot
+
+  //Mux 1 for ddot
   when(io.Tk === true.B){
-  w0 := io.col_1
+    w0 := io.col_1
     w1 := io.col_1
   }.elsewhen(io.Vk === true.B){
     w0 := reg_array_h
     w1 := reg_array_h
-  }.otherwise{
-    w0 := reg_array_h
+  }.otherwise {
+    for (b <- level until col) {
+      reg_2(b) := reg_arrays_h(b)
+    }
+    w0 := reg_2
     w1 := reg_array_h
   }
 //ddot
@@ -302,14 +310,29 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
     divide.io.in_b := dDot.io.out_s
     tk := divide.io.out_s
   }.otherwise{
-  }
+    val d5 = Wire(UInt(bitwidth.W))
+    val d5_M = Module(new FP_multiplier(bitwidth))
+    val axpy = Module(new axpy(bitwidth, col))
+    d5_M.io.in_a := tk
+    d5_M.io.in_b := dDot.io.out_s
+    d5 := d5_M.io.out_s
+    axpy.io.in_a := d5
+      axpy.io.in_b := reg_array_h
+      axpy.io.in_c := reg_2
+    reg_arrays_h_b := axpy.io.out_s
+    }
+
+
+
 
 
   when(io.Vk === true.B){
     reg_array_h(0) := reg_1
   }
-  io.out_test := reg_1
-
+  when(io.Tr === true.B){
+    reg_array_h(0) := reg_1
+  }
+  io.out_test := reg_arrays_h_b(1)
 io.out_s := w0
 
   }
@@ -461,17 +484,6 @@ class FP_dDot_2(bw:Int,level:Int) extends Module{
     //println(stages_2 + "After Stage")
     //println("________________________________")
   }
-
-
-
-
-
-
-
-
-
-
-
 //adder - 1 for overflow
   io.out_s := adder_sequence(adder_count-1).out_s
 }
@@ -553,21 +565,30 @@ io.out_s(i) := adder_layer(i).out_s
 
     def main(args: Array[String]): Unit = {
       test(new house_HolderQR(2, 2, 32)) { c =>
-        c.io.col_1(0).poke("b01000000100000000000000000000000".U)
-        c.io.col_1(1).poke("b00111111100000000000000000000000".U)
+        c.io.col_1(0).poke("b00111111100000000000000000000000".U)
+        c.io.col_1(1).poke("b01000000100000000000000000000000".U)
         c.io.reg_array(0).poke("b00111111100000000000000000000000".U)
         c.io.reg_array(1).poke("b01000000100000000000000000000000".U)
+        c.io.reg_arrays(0).poke("b00111111100000000000000000000000".U)
+        c.io.reg_arrays(1).poke("b01000000100000000000000000000000".U)
+        c.io.reg_arrays(2).poke("b00111111100000000000000000000000".U)
+        c.io.reg_arrays(3).poke("b00111111100000000000000000000000".U)
+
         c.io.Tk.poke(true.B)
         c.io.Vk.poke(false.B)
+        c.io.Tr.poke(false.B)
         c.clock.step(13)
         c.io.Tk.poke(false.B)
         c.io.Vk.poke(true.B)
+        c.io.Tr.poke(false.B)
         c.clock.step(12)
         c.io.Tk.poke(false.B)
         c.io.Vk.poke(false.B)
+        c.io.Tr.poke(true.B)
+        c.clock.step(8)
 
         //c.io.out_s(0).expect("b01000000100000000000000000000000".U)
-        c.io.out_test.expect("b01000000100000000000000000000000".U)
+        c.io.out_test.expect("b00111111100000000000000000000000".U)
         //c.io.in_a(2).poke("b00111111100000000000000000000000".U)
         //c.io.in_a(3).poke("b01000000100000000000000000000000".U)
 
