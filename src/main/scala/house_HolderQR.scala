@@ -240,7 +240,7 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
   val io = IO(new Bundle() {
     val col_1 = Input(Vec((row), UInt(bitwidth.W)))
     val reg_array = Input(Vec((row), UInt(bitwidth.W)))
-    val reg_arrays = Input(Vec((row*col), UInt(bitwidth.W)))
+    val reg_arrays = Input(Vec((row), UInt(bitwidth.W)))
     val Tk = Input(Bool())
     val Vk = Input(Bool())
     val Tr = Input(Bool())
@@ -249,7 +249,7 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
     val out_s = Output(Vec((row), UInt(bitwidth.W)))
   })
   val reg_array_h = Reg(Vec((row), UInt(bitwidth.W)))
-  val reg_arrays_h = Reg(Vec((row * col), UInt(bitwidth.W)))
+  val reg_arrays_h = Reg(Vec((row), UInt(bitwidth.W)))
   val reg_arrays_h_b = Reg(Vec((col), UInt(bitwidth.W)))
   val reg_1 = Reg(UInt(bitwidth.W))
   val reg_2 = Reg(Vec((row), UInt(bitwidth.W)))
@@ -265,10 +265,8 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
   //val sign = Module(new sign_Calculator(bitwidth))
 
 
-
   reg_array_h := io.reg_array
   reg_arrays_h := io.reg_arrays
-
 
 
   //Mux 1 for ddot
@@ -279,9 +277,11 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
     w0 := reg_array_h
     w1 := reg_array_h
   }.otherwise {
-    for (b <- level until col) {
-      reg_2(b) := reg_arrays_h(b)
-    }
+    val reg_array = Module(new reg_arrays(bitwidth,row))
+    reg_array.io.in_a := reg_arrays_h
+
+      reg_2 := reg_arrays_h
+
     w0 := reg_2
     w1 := reg_array_h
   }
@@ -332,7 +332,7 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
   when(io.Tr === true.B){
     reg_array_h(0) := reg_1
   }
-  io.out_test := reg_arrays_h_b(1)
+  io.out_test := reg_arrays_h_b(0)
 io.out_s := w0
 
   }
@@ -560,6 +560,27 @@ io.out_s(i) := adder_layer(i).out_s
   }
 }
 
+class reg_arrays(bw:Int,level:Int)extends Module {
+  val io = IO {
+    new Bundle() {
+      val in_a = Input(Vec((level), UInt(bw.W)))
+      val out_s = Output(Vec((level), UInt(bw.W)))
+    }
+  }
+  val reg_array_h = Reg(Vec(8, UInt(bw.W)))
+  reg_array_h(0) := io.in_a(0)
+  reg_array_h(1) := reg_array_h(0)
+  reg_array_h(2) := reg_array_h(1)
+  reg_array_h(3) := reg_array_h(2)
+  io.out_s(0) := reg_array_h(3)
+  reg_array_h(4) := io.in_a(1)
+  reg_array_h(5) := reg_array_h(4)
+  reg_array_h(6) := reg_array_h(5)
+  reg_array_h(7) := reg_array_h(6)
+  io.out_s(1) := reg_array_h(7)
+
+
+}
 
   object tester_1 {
 
@@ -571,8 +592,6 @@ io.out_s(i) := adder_layer(i).out_s
         c.io.reg_array(1).poke("b01000000100000000000000000000000".U)
         c.io.reg_arrays(0).poke("b00111111100000000000000000000000".U)
         c.io.reg_arrays(1).poke("b01000000100000000000000000000000".U)
-        c.io.reg_arrays(2).poke("b00111111100000000000000000000000".U)
-        c.io.reg_arrays(3).poke("b00111111100000000000000000000000".U)
 
         c.io.Tk.poke(true.B)
         c.io.Vk.poke(false.B)
@@ -585,7 +604,10 @@ io.out_s(i) := adder_layer(i).out_s
         c.io.Tk.poke(false.B)
         c.io.Vk.poke(false.B)
         c.io.Tr.poke(true.B)
-        c.clock.step(8)
+        c.clock.step(1)
+        c.io.reg_arrays(0).poke("b00111111100000000000000000000000".U)
+        c.io.reg_arrays(1).poke("b00111111100000000000000000000000".U)
+        c.clock.step(7)
 
         //c.io.out_s(0).expect("b01000000100000000000000000000000".U)
         c.io.out_test.expect("b00111111100000000000000000000000".U)
