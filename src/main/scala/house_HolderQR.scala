@@ -261,9 +261,9 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
   //val d1 = Wire(UInt(bitwidth.W))
   //val d2 = Wire(UInt(bitwidth.W))
   val dDot = Module(new FP_dDot_2(bitwidth,row))
+  val test = Reg(UInt(bitwidth.W))
   //val sqrt = Module(new FP_square_root(bitwidth))
   //val sign = Module(new sign_Calculator(bitwidth))
-
 
   reg_array_h := io.reg_array
   reg_arrays_h := io.reg_arrays
@@ -273,19 +273,19 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
   when(io.Tk === true.B){
     w0 := io.col_1
     w1 := io.col_1
+    // TK flag
   }.elsewhen(io.Vk === true.B){
     w0 := reg_array_h
     w1 := reg_array_h
+    //VK flag
   }.otherwise {
-    val reg_array = Module(new reg_arrays(bitwidth,row))
-    reg_array.io.in_a := reg_arrays_h
-
-      reg_2 := reg_arrays_h
+      reg_2 := reg_array_h
 
     w0 := reg_2
-    w1 := reg_array_h
+    w1 := reg_arrays_h
   }
 //ddot
+
   dDot.io.in_a := w0
   dDot.io.in_b := w1
 
@@ -310,15 +310,20 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
     divide.io.in_b := dDot.io.out_s
     tk := divide.io.out_s
   }.otherwise{
-    val d5 = Wire(UInt(bitwidth.W))
+    val reg_array = Module(new reg_arrays(bitwidth,row))
+    reg_array.io.in_a := reg_arrays_h
+
+    // TESTER
+
+
     val d5_M = Module(new FP_multiplier(bitwidth))
     val axpy = Module(new axpy(bitwidth, col))
+    test := reg_arrays_h_b(0)
     d5_M.io.in_a := tk
     d5_M.io.in_b := dDot.io.out_s
-    d5 := d5_M.io.out_s
-    axpy.io.in_a := d5
-      axpy.io.in_b := reg_array_h
-      axpy.io.in_c := reg_2
+    axpy.io.in_a := d5_M.io.out_s
+      axpy.io.in_b := reg_2
+      axpy.io.in_c := reg_array.io.out_s
     reg_arrays_h_b := axpy.io.out_s
     }
 
@@ -332,7 +337,7 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
   when(io.Tr === true.B){
     reg_array_h(0) := reg_1
   }
-  io.out_test := reg_arrays_h_b(0)
+  io.out_test := test
 io.out_s := w0
 
   }
@@ -567,158 +572,172 @@ class reg_arrays(bw:Int,level:Int)extends Module {
       val out_s = Output(Vec((level), UInt(bw.W)))
     }
   }
-  val reg_array_h = Reg(Vec(8, UInt(bw.W)))
+  val reg_array_h = Reg(Vec(14, UInt(bw.W)))
   reg_array_h(0) := io.in_a(0)
   reg_array_h(1) := reg_array_h(0)
   reg_array_h(2) := reg_array_h(1)
   reg_array_h(3) := reg_array_h(2)
-  io.out_s(0) := reg_array_h(3)
-  reg_array_h(4) := io.in_a(1)
+  reg_array_h(4) := reg_array_h(3)
   reg_array_h(5) := reg_array_h(4)
   reg_array_h(6) := reg_array_h(5)
-  reg_array_h(7) := reg_array_h(6)
-  io.out_s(1) := reg_array_h(7)
+  io.out_s(0) := reg_array_h(3)
+  reg_array_h(7) := io.in_a(1)
+  reg_array_h(8) := reg_array_h(7)
+  reg_array_h(9) := reg_array_h(8)
+  reg_array_h(10) := reg_array_h(9)
+  reg_array_h(11) := reg_array_h(10)
+  reg_array_h(12) := reg_array_h(11)
+  reg_array_h(13) := reg_array_h(12)
+  io.out_s(1) := reg_array_h(10)
 
 
 }
 
-  object tester_1 {
-
-    def main(args: Array[String]): Unit = {
-      test(new house_HolderQR(2, 2, 32)) { c =>
-        c.io.col_1(0).poke("b00111111100000000000000000000000".U)
-        c.io.col_1(1).poke("b01000000100000000000000000000000".U)
-        c.io.reg_array(0).poke("b00111111100000000000000000000000".U)
-        c.io.reg_array(1).poke("b01000000100000000000000000000000".U)
-        c.io.reg_arrays(0).poke("b00111111100000000000000000000000".U)
-        c.io.reg_arrays(1).poke("b01000000100000000000000000000000".U)
-
-        c.io.Tk.poke(true.B)
-        c.io.Vk.poke(false.B)
-        c.io.Tr.poke(false.B)
-        c.clock.step(13)
-        c.io.Tk.poke(false.B)
-        c.io.Vk.poke(true.B)
-        c.io.Tr.poke(false.B)
-        c.clock.step(12)
-        c.io.Tk.poke(false.B)
-        c.io.Vk.poke(false.B)
-        c.io.Tr.poke(true.B)
-        c.clock.step(1)
-        c.io.reg_arrays(0).poke("b00111111100000000000000000000000".U)
-        c.io.reg_arrays(1).poke("b00111111100000000000000000000000".U)
-        c.clock.step(7)
-
-        //c.io.out_s(0).expect("b01000000100000000000000000000000".U)
-        c.io.out_test.expect("b00111111100000000000000000000000".U)
-        //c.io.in_a(2).poke("b00111111100000000000000000000000".U)
-        //c.io.in_a(3).poke("b01000000100000000000000000000000".U)
+  object tester_1 extends App{
 
 
-
-
-      //test(new FP_dDot_2(32, 2)) { c =>
-        //c.io.in_a(0).poke("b00111111100000000000000000000000".U)
-       // c.io.in_b(0).poke("b01000000100000000000000000000000".U)
-        /*
-               c.io.in_a(1).poke("b00111111100000000000000000000000".U)
-               c.io.in_b(1).poke("b01000000100000000000000000000000".U)
-
-               c.io.in_a(2).poke("b01000000100000000000000000000000".U)
-               c.io.in_b(2).poke("b00111111100000000000000000000000".U)
-
-               c.io.in_a(3).poke("b00111111100000000000000000000000".U)
-               c.io.in_b(3).poke("b01000000100000000000000000000000".U)
-
-               c.io.in_a(4).poke("b00111111100000000000000000000000".U)
-               c.io.in_b(4).poke("b01000000100000000000000000000000".U)
-
-               c.io.in_a(5).poke("b00111111100000000000000000000000".U)
-               c.io.in_b(5).poke("b01000000100000000000000000000000".U)
-
-               c.io.in_a(6).poke("b00111111100000000000000000000000".U)
-               c.io.in_b(6).poke("b01000000100000000000000000000000".U)
-
-               c.io.in_a(7).poke("b00111111100000000000000000000000".U)
-               c.io.in_b(7).poke("b01000000100000000000000000000000".U)
-
-               c.io.in_b(8).poke("b01000000100000000000000000000000".U)
-               c.io.in_a(8).poke("b00111111100000000000000000000000".U)
-
-               c.io.in_b(9).poke("b01000000100000000000000000000000".U)
-               c.io.in_a(9).poke("b00111111100000000000000000000000".U)
-
-               c.io.in_b(10).poke("b01000000100000000000000000000000".U)
-               c.io.in_a(10).poke("b00111111100000000000000000000000".U)
-
-               c.io.in_b(11).poke("b01000000100000000000000000000000".U)
-               c.io.in_a(11).poke("b00111111100000000000000000000000".U)
-
-
-               c.io.in_a(12).poke("b00111111100000000000000000000000".U)
-               c.io.in_b(12).poke("b01000000100000000000000000000000".U)
-
-               //c.io.in_a(13).poke("b01000000100000000000000000000000".U)
-               //c.io.in_b(13).poke("b00111111100000000000000000000000".U)
-
-               //c.io.in_a(14).poke("b00111111100000000000000000000000".U)
-               //c.io.in_b(14).poke("b01000000100000000000000000000000".U)
-
-               //c.io.in_a(15).poke("b01000000100000000000000000000000".U)
-               //c.io.in_b(15).poke("b00111111100000000000000000000000".U)
-
-               //c.io.in_a(16).poke("b00111111100000000000000000000000".U)
-               //c.io.in_b(16).poke("b01000000100000000000000000000000".U)
-
-               //c.io.in_a(17).poke("b00111111100000000000000000000000".U)
-               //c.io.in_b(17).poke("b01000000100000000000000000000000".U)
-
-               //c.io.in_a(18).poke("b00111111100000000000000000000000".U)
-               //c.io.in_b(18).poke("b01000000100000000000000000000000".U)
-
-               //c.io.in_a(19).poke("b00111111100000000000000000000000".U)
-               //c.io.in_b(19).poke("b01000000100000000000000000000000".U)
-               //c.io.in_a(20).poke("b00111111100000000000000000000000".U)
-               //c.io.in_b(20).poke("b01000000100000000000000000000000".U)
-               //c.io.in_b(21).poke("b01000000100000000000000000000000".U)
-               //c.io.in_a(21).poke("b00111111100000000000000000000000".U)
-               //c.io.in_b(22).poke("b01000000100000000000000000000000".U)
-               //c.io.in_a(22).poke("b00111111100000000000000000000000".U)
-               //c.io.in_b(23).poke("b01000000100000000000000000000000".U)
-               //c.io.in_a(23).poke("b00111111100000000000000000000000".U)
-
-
-                */
-    //  c.clock.step(10)
-       // c.io.out_s.expect("b01000001000000000000000000000000".U)
-      //}
-
-     // test(new house_Divider(32)) { c =>
-       // c.io.in_a.poke("b01000001100101111000110111101101".U)
-        //  c.clock.step(6)
-        // c.io.out_s.expect("b01000001000000000000000000000000".U)
-      //}
+    println(new(chisel3.stage.ChiselStage).emitVerilog(new FP_dDot_2(32,256)))
+    //def main(args: Array[String]): Unit = {
 /*
-      test(new axpy(32,2)) { c =>
-        c.io.in_a.poke("b01000001100101111000110111101101".U)
-        c.io.in_b(0).poke("b11000001100101111000110111101101".U)
-        c.io.in_b(1).poke("b01000001000100000000000000000000".U)
-        c.io.in_c(0).poke("b01000001100101111000110111101101".U)
-        c.io.in_c(1).poke("b01000001100101111000110111101101".U)
+test(new house_HolderQR(2, 2, 32)) { c =>
+  c.io.col_1(0).poke("b00111111100000000000000000000000".U)
+  c.io.col_1(1).poke("b01000000100000000000000000000000".U)
+  c.io.reg_array(0).poke("b00111111100000000000000000000000".U)
+  c.io.reg_array(1).poke("b01000000100000000000000000000000".U)
+
+
+  c.io.Tk.poke(true.B)
+  c.io.Vk.poke(false.B)
+  c.io.Tr.poke(false.B)
+  c.clock.step(13)
+  c.io.Tk.poke(false.B)
+  c.io.Vk.poke(true.B)
+  c.io.Tr.poke(false.B)
+  c.clock.step(12)
+  c.io.Tk.poke(false.B)
+  c.io.Vk.poke(false.B)
+  c.io.Tr.poke(true.B)
+  c.clock.step(1)
+  c.io.reg_arrays(0).poke("b00111111100000000000000000000000".U)
+  c.io.reg_arrays(1).poke("b01000000100000000000000000000000".U)
+  c.clock.step(1)
+  c.io.reg_arrays(0).poke("b01000000101000000000000000000000".U)
+  c.io.reg_arrays(1).poke("b00111111100000000000000000000000".U)
+  c.clock.step(8)
+  //c.io.out_s(0).expect("b01000000100000000000000000000000".U)
+  c.io.out_test.expect("b00111111100000000000000000000000".U)
+  //c.io.in_a(2).poke("b00111111100000000000000000000000".U)
+  //c.io.in_a(3).poke("b01000000100000000000000000000000".U)
 
 
 
-        c.clock.step(2)
-
-        c.io.out_s(0).expect("b01000001000000000000000000000000".U)
-        */
-
-      }
-      println("SUCCESS!!")
+ */
 
 
-    }
-  }
+
+
+//test(new FP_dDot_2(32, 2)) { c =>
+  //c.io.in_a(0).poke("b00111111100000000000000000000000".U)
+ // c.io.in_b(0).poke("b01000000100000000000000000000000".U)
+  /*
+         c.io.in_a(1).poke("b00111111100000000000000000000000".U)
+         c.io.in_b(1).poke("b01000000100000000000000000000000".U)
+
+         c.io.in_a(2).poke("b01000000100000000000000000000000".U)
+         c.io.in_b(2).poke("b00111111100000000000000000000000".U)
+
+         c.io.in_a(3).poke("b00111111100000000000000000000000".U)
+         c.io.in_b(3).poke("b01000000100000000000000000000000".U)
+
+         c.io.in_a(4).poke("b00111111100000000000000000000000".U)
+         c.io.in_b(4).poke("b01000000100000000000000000000000".U)
+
+         c.io.in_a(5).poke("b00111111100000000000000000000000".U)
+         c.io.in_b(5).poke("b01000000100000000000000000000000".U)
+
+         c.io.in_a(6).poke("b00111111100000000000000000000000".U)
+         c.io.in_b(6).poke("b01000000100000000000000000000000".U)
+
+         c.io.in_a(7).poke("b00111111100000000000000000000000".U)
+         c.io.in_b(7).poke("b01000000100000000000000000000000".U)
+
+         c.io.in_b(8).poke("b01000000100000000000000000000000".U)
+         c.io.in_a(8).poke("b00111111100000000000000000000000".U)
+
+         c.io.in_b(9).poke("b01000000100000000000000000000000".U)
+         c.io.in_a(9).poke("b00111111100000000000000000000000".U)
+
+         c.io.in_b(10).poke("b01000000100000000000000000000000".U)
+         c.io.in_a(10).poke("b00111111100000000000000000000000".U)
+
+         c.io.in_b(11).poke("b01000000100000000000000000000000".U)
+         c.io.in_a(11).poke("b00111111100000000000000000000000".U)
+
+
+         c.io.in_a(12).poke("b00111111100000000000000000000000".U)
+         c.io.in_b(12).poke("b01000000100000000000000000000000".U)
+
+         //c.io.in_a(13).poke("b01000000100000000000000000000000".U)
+         //c.io.in_b(13).poke("b00111111100000000000000000000000".U)
+
+         //c.io.in_a(14).poke("b00111111100000000000000000000000".U)
+         //c.io.in_b(14).poke("b01000000100000000000000000000000".U)
+
+         //c.io.in_a(15).poke("b01000000100000000000000000000000".U)
+         //c.io.in_b(15).poke("b00111111100000000000000000000000".U)
+
+         //c.io.in_a(16).poke("b00111111100000000000000000000000".U)
+         //c.io.in_b(16).poke("b01000000100000000000000000000000".U)
+
+         //c.io.in_a(17).poke("b00111111100000000000000000000000".U)
+         //c.io.in_b(17).poke("b01000000100000000000000000000000".U)
+
+         //c.io.in_a(18).poke("b00111111100000000000000000000000".U)
+         //c.io.in_b(18).poke("b01000000100000000000000000000000".U)
+
+         //c.io.in_a(19).poke("b00111111100000000000000000000000".U)
+         //c.io.in_b(19).poke("b01000000100000000000000000000000".U)
+         //c.io.in_a(20).poke("b00111111100000000000000000000000".U)
+         //c.io.in_b(20).poke("b01000000100000000000000000000000".U)
+         //c.io.in_b(21).poke("b01000000100000000000000000000000".U)
+         //c.io.in_a(21).poke("b00111111100000000000000000000000".U)
+         //c.io.in_b(22).poke("b01000000100000000000000000000000".U)
+         //c.io.in_a(22).poke("b00111111100000000000000000000000".U)
+         //c.io.in_b(23).poke("b01000000100000000000000000000000".U)
+         //c.io.in_a(23).poke("b00111111100000000000000000000000".U)
+
+
+          */
+//  c.clock.step(10)
+ // c.io.out_s.expect("b01000001000000000000000000000000".U)
+//}
+
+// test(new house_Divider(32)) { c =>
+ // c.io.in_a.poke("b01000001100101111000110111101101".U)
+  //  c.clock.step(6)
+  // c.io.out_s.expect("b01000001000000000000000000000000".U)
+//}
+/*
+test(new axpy(32,2)) { c =>
+  c.io.in_a.poke("b01000001100101111000110111101101".U)
+  c.io.in_b(0).poke("b11000001100101111000110111101101".U)
+  c.io.in_b(1).poke("b01000001000100000000000000000000".U)
+  c.io.in_c(0).poke("b01000001100101111000110111101101".U)
+  c.io.in_c(1).poke("b01000001100101111000110111101101".U)
+
+
+
+  c.clock.step(2)
+
+  c.io.out_s(0).expect("b01000001000000000000000000000000".U)
+  */
+
+//}
+//println("SUCCESS!!")
+
+
+//}
+}
 
 
 
