@@ -244,7 +244,7 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
     val Tk = Input(Bool())
     val Vk = Input(Bool())
     val Tr = Input(Bool())
-    //val h_count = Input(UInt)
+    val h_count = Input(UInt(bitwidth.W))
     val out_test = Output(UInt(bitwidth.W))
     val out_s = Output(Vec((row), UInt(bitwidth.W)))
   })
@@ -253,8 +253,10 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
   val reg_arrays_h_b = Reg(Vec((col), UInt(bitwidth.W)))
   val reg_1 = Reg(UInt(bitwidth.W))
   val reg_2 = Reg(Vec((row), UInt(bitwidth.W)))
+  val reg_h = RegInit(0.U(bitwidth.W))
   val tk = Reg(UInt(bitwidth.W))
   var level = 0
+  var loop = 0
   //val reg_arrays_h = Reg(Vec((row), UInt(bitwidth.W)))
   val w0 = Wire(Vec((row), UInt(bitwidth.W)))
   val w1 = Wire(Vec((row), UInt(bitwidth.W)))
@@ -267,6 +269,11 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
 
   reg_array_h := io.reg_array
   reg_arrays_h := io.reg_arrays
+  reg_h := io.h_count
+
+
+    //Mux((reg_h === 0.U),(loop = 0),(loop = 1))
+
 
 
   //Mux 1 for ddot
@@ -278,11 +285,17 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
     w0 := reg_array_h
     w1 := reg_array_h
     //VK flag
-  }.otherwise {
+  }
+    .elsewhen(io.Tr === true.B){
       reg_2 := reg_array_h
-
-    w0 := reg_2
-    w1 := reg_arrays_h
+      w0 := reg_2
+      w1 := reg_arrays_h
+    }
+    .otherwise {
+      for(i <- 0 until row) {
+        w0(i) := 0.U
+        w1(i) := 0.U
+      }
   }
 //ddot
 
@@ -309,13 +322,10 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
     divide.io.in_a := "b11000000000000000000000000000000".U
     divide.io.in_b := dDot.io.out_s
     tk := divide.io.out_s
-  }.otherwise{
+  }.elsewhen(io.Tr === true.B){
     val reg_array = Module(new reg_arrays(bitwidth,row))
     reg_array.io.in_a := reg_arrays_h
-
     // TESTER
-
-
     val d5_M = Module(new FP_multiplier(bitwidth))
     val axpy = Module(new axpy(bitwidth, col))
     test := reg_arrays_h_b(0)
@@ -326,7 +336,6 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
       axpy.io.in_c := reg_array.io.out_s
     reg_arrays_h_b := axpy.io.out_s
     }
-
 
 
 
@@ -446,7 +455,7 @@ class FP_dDot_2(bw:Int,level:Int) extends Module{
       stages_2 = stages_2 / 2
       odd_or_even = true
     }
-    println(stages_2 + " Recur Stage")
+    //println(stages_2 + " Recur Stage")
     total_adders = stages_2 + total_adders
     //println(odd_or_even)
     //println(stages_2)
@@ -459,10 +468,10 @@ class FP_dDot_2(bw:Int,level:Int) extends Module{
       total_adders= total_adders - 1
     }
 
-    println(total_adders + "T")
+    //println(total_adders + "T")
       for (i <- p_adders until total_adders by 2){
        // println(adder_count)
-        println(i + "P")
+        //println(i + "P")
         adder_sequence(adder_count).in_a := adder_sequence(i).out_s
         if(i + 1 >= total_adders){
           if(stages_2 != 1){
@@ -593,53 +602,48 @@ class reg_arrays(bw:Int,level:Int)extends Module {
 
 }
 
-  object tester_1 extends App{
+  object tester_1 extends App {
 
 
-    println(new(chisel3.stage.ChiselStage).emitVerilog(new FP_dDot_2(32,256)))
+    //println(new(chisel3.stage.ChiselStage).emitVerilog(new sign_Calculator(32)))
     //def main(args: Array[String]): Unit = {
-/*
-test(new house_HolderQR(2, 2, 32)) { c =>
-  c.io.col_1(0).poke("b00111111100000000000000000000000".U)
-  c.io.col_1(1).poke("b01000000100000000000000000000000".U)
-  c.io.reg_array(0).poke("b00111111100000000000000000000000".U)
-  c.io.reg_array(1).poke("b01000000100000000000000000000000".U)
+
+    test(new house_HolderQR(2, 2, 32)) { c =>
+      c.io.col_1(0).poke("b00111111100000000000000000000000".U)
+      c.io.col_1(1).poke("b01000000100000000000000000000000".U)
+      c.io.h_count.poke(1.U)
+      c.io.reg_array(0).poke("b00111111100000000000000000000000".U)
+      c.io.reg_array(1).poke("b01000000100000000000000000000000".U)
 
 
-  c.io.Tk.poke(true.B)
-  c.io.Vk.poke(false.B)
-  c.io.Tr.poke(false.B)
-  c.clock.step(13)
-  c.io.Tk.poke(false.B)
-  c.io.Vk.poke(true.B)
-  c.io.Tr.poke(false.B)
-  c.clock.step(12)
-  c.io.Tk.poke(false.B)
-  c.io.Vk.poke(false.B)
-  c.io.Tr.poke(true.B)
-  c.clock.step(1)
-  c.io.reg_arrays(0).poke("b00111111100000000000000000000000".U)
-  c.io.reg_arrays(1).poke("b01000000100000000000000000000000".U)
-  c.clock.step(1)
-  c.io.reg_arrays(0).poke("b01000000101000000000000000000000".U)
-  c.io.reg_arrays(1).poke("b00111111100000000000000000000000".U)
-  c.clock.step(8)
-  //c.io.out_s(0).expect("b01000000100000000000000000000000".U)
-  c.io.out_test.expect("b00111111100000000000000000000000".U)
-  //c.io.in_a(2).poke("b00111111100000000000000000000000".U)
-  //c.io.in_a(3).poke("b01000000100000000000000000000000".U)
+      c.io.Tk.poke(true.B)
+      c.io.Vk.poke(false.B)
+      c.io.Tr.poke(false.B)
+      c.clock.step(13)
+      c.io.Tk.poke(false.B)
+      c.io.Vk.poke(true.B)
+      c.io.Tr.poke(false.B)
+      c.clock.step(12)
+      c.io.Tk.poke(false.B)
+      c.io.Vk.poke(false.B)
+      c.io.Tr.poke(true.B)
+      c.clock.step(1)
+      c.io.reg_arrays(0).poke("b00111111100000000000000000000000".U)
+      c.io.reg_arrays(1).poke("b01000000100000000000000000000000".U)
+      c.clock.step(1)
+      c.io.reg_arrays(0).poke("b01000000101000000000000000000000".U)
+      c.io.reg_arrays(1).poke("b00111111100000000000000000000000".U)
+      c.clock.step(8)
+      //c.io.out_s(0).expect("b01000000100000000000000000000000".U)
+      //c.io.out_test.expect("b00111111100000000000000000000000".U)
+      //c.io.in_a(2).poke("b00111111100000000000000000000000".U)
+      //c.io.in_a(3).poke("b01000000100000000000000000000000".U)
 
 
-
- */
-
-
-
-
-//test(new FP_dDot_2(32, 2)) { c =>
-  //c.io.in_a(0).poke("b00111111100000000000000000000000".U)
- // c.io.in_b(0).poke("b01000000100000000000000000000000".U)
-  /*
+      //test(new FP_dDot_2(32, 2)) { c =>
+      //c.io.in_a(0).poke("b00111111100000000000000000000000".U)
+      // c.io.in_b(0).poke("b01000000100000000000000000000000".U)
+      /*
          c.io.in_a(1).poke("b00111111100000000000000000000000".U)
          c.io.in_b(1).poke("b01000000100000000000000000000000".U)
 
@@ -708,16 +712,16 @@ test(new house_HolderQR(2, 2, 32)) { c =>
 
 
           */
-//  c.clock.step(10)
- // c.io.out_s.expect("b01000001000000000000000000000000".U)
-//}
+      //  c.clock.step(10)
+      // c.io.out_s.expect("b01000001000000000000000000000000".U)
+      //}
 
-// test(new house_Divider(32)) { c =>
- // c.io.in_a.poke("b01000001100101111000110111101101".U)
-  //  c.clock.step(6)
-  // c.io.out_s.expect("b01000001000000000000000000000000".U)
-//}
-/*
+      // test(new house_Divider(32)) { c =>
+      // c.io.in_a.poke("b01000001100101111000110111101101".U)
+      //  c.clock.step(6)
+      // c.io.out_s.expect("b01000001000000000000000000000000".U)
+      //}
+      /*
 test(new axpy(32,2)) { c =>
   c.io.in_a.poke("b01000001100101111000110111101101".U)
   c.io.in_b(0).poke("b11000001100101111000110111101101".U)
@@ -732,12 +736,13 @@ test(new axpy(32,2)) { c =>
   c.io.out_s(0).expect("b01000001000000000000000000000000".U)
   */
 
-//}
-//println("SUCCESS!!")
+      //}
+      println("SUCCESS!!")
 
 
-//}
-}
+      //}
+    }
+  }
 
 
 
