@@ -256,12 +256,13 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
   val col_1 = Reg(Vec((row), UInt(bitwidth.W)))
   val tk = Reg(UInt(bitwidth.W))
   var level = 0
+  var loop = 0
   //val reg_arrays_h = Reg(Vec((row), UInt(bitwidth.W)))
   val w0 = Wire(Vec((row), UInt(bitwidth.W)))
   val w1 = Wire(Vec((row), UInt(bitwidth.W)))
   //val d1 = Wire(UInt(bitwidth.W))
   //val d2 = Wire(UInt(bitwidth.W))
-  val dDot = Module(new FP_dDot_2(bitwidth,row))
+  val dDot = Module(new FP_dDot_2(bitwidth, row))
   val test = Reg(UInt(bitwidth.W))
   //val sqrt = Module(new FP_square_root(bitwidth))
   //val sign = Module(new sign_Calculator(bitwidth))
@@ -272,72 +273,75 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
 
 
 
-    //Mux((reg_h === 0.U),(loop = 0),(loop = 1))
+  //Mux((reg_h === 0.U),(loop = 0),(loop = 1))
 
 
+    //Mux 1 for ddot
+    when(io.Tk === true.B) {
+      for (i <- 0 until col) {
+        //Starts testing the clock
+        when(i.U < io.h_count) {
+          w0(i) := 0.U(i)
+          w1(i) := 0.U(i)
+        }.elsewhen(i.U > io.h_count) {
+          w0(i) := io.col_1(i)
+          w1(i) := io.col_1(i)
+        }.otherwise {
+          w0(i) := io.col_1(i)
+          w1(i) := io.col_1(i)
+        }
 
-  //Mux 1 for ddot
-  when(io.Tk === true.B){
-    for(i <- 0 until col) {
-      //Starts testing the clock
-      when(i.U < io.h_count){
-       w0(i) := 0.U(i)
-       w1(i) := 0.U(i)
-     }.elsewhen (i.U > io.h_count) {
-       w0(i) := io.col_1(i)
-       w1(i) := io.col_1(i)
-     }  .otherwise{
-       w0(i) := io.col_1(i)
-       w1(i) := io.col_1(i)
-     }
-    }
-    // TK flag
-  }.elsewhen(io.Vk === true.B){
-    w0 := reg_array_h
-    w1 := reg_array_h
-    //VK flag
-  }
-    .elsewhen(io.Tr === true.B){
-      reg_2 := reg_array_h
-      w0 := reg_2
-      w1 := reg_arrays_h
-    }
-    .otherwise {
-      for(i <- 0 until row) {
-        w0(i) := 0.U
-        w1(i) := 0.U
+        if(i + 1 == col){
+
+        }
       }
-  }
-//ddot
+      // TK flag
+    }.elsewhen(io.Vk === true.B) {
+      w0 := reg_array_h
+      w1 := reg_array_h
+      //VK flag
+    }
+      .elsewhen(io.Tr === true.B) {
+        reg_2 := reg_array_h
+        w0 := reg_2
+        w1 := reg_arrays_h
+      }
+      .otherwise {
+        for (i <- 0 until row) {
+          w0(i) := 0.U
+          w1(i) := 0.U
+        }
+      }
+
+  //ddot
 
   dDot.io.in_a := w0
   dDot.io.in_b := w1
 
-//mux 2 after ddot
-  when(io.Tk === true.B){
+  //mux 2 after ddot
+  when(io.Tk === true.B) {
     // defines first part
     val d1 = Wire(UInt(bitwidth.W))
     val d2 = Wire(UInt(bitwidth.W))
     val sqrt = Module(new FP_square_root(bitwidth))
     val sign = Module(new sign_Calculator(bitwidth))
-  d1 := dDot.io.out_s
+    d1 := dDot.io.out_s
     //square root
     sqrt.io.in_a := d1
     d2 := sqrt.io.out_s
     //sign
     //gets the correct Vk value
 
-
-    sign.io.in_a := reg_array_h(0)
+    sign.io.in_a := reg_array_h(io.h_count)
     sign.io.in_b := d2
     reg_1 := sign.io.out_s
-  }.elsewhen(io.Vk === true.B){
+  }.elsewhen(io.Vk === true.B) {
     val divide = Module(new FP_divider(bitwidth))
     divide.io.in_a := "b11000000000000000000000000000000".U
     divide.io.in_b := dDot.io.out_s
     tk := divide.io.out_s
-  }.elsewhen(io.Tr === true.B){
-    val reg_array = Module(new reg_arrays(bitwidth,row))
+  }.elsewhen(io.Tr === true.B) {
+    val reg_array = Module(new reg_arrays(bitwidth, row))
     reg_array.io.in_a := reg_arrays_h
     // TESTER
     val d5_M = Module(new FP_multiplier(bitwidth))
@@ -346,24 +350,21 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
     d5_M.io.in_a := tk
     d5_M.io.in_b := dDot.io.out_s
     axpy.io.in_a := d5_M.io.out_s
-      axpy.io.in_b := reg_2
-      axpy.io.in_c := reg_array.io.out_s
+    axpy.io.in_b := reg_2
+    axpy.io.in_c := reg_array.io.out_s
     reg_arrays_h_b := axpy.io.out_s
-    }
-
-
-
-
-  when(io.Vk === true.B){
-    reg_array_h(0) := reg_1
   }
-  when(io.Tr === true.B){
-    reg_array_h(0) := reg_1
-  }
-  io.out_test := w0(2)
-io.out_s := w0
 
+
+  when(io.Vk === true.B) {
+    reg_array_h(io.h_count) := reg_1
   }
+  when(io.Tr === true.B) {
+    reg_array_h(io.h_count) := reg_1
+  }
+  io.out_test := test
+  io.out_s := w0
+}
 
 
 class FP_dDot_2(bw:Int,level:Int) extends Module{
@@ -612,7 +613,7 @@ class reg_arrays(bw:Int,level:Int)extends Module {
   reg_array_h(12) := reg_array_h(11)
   reg_array_h(13) := reg_array_h(12)
   io.out_s(1) := reg_array_h(10)
-    io.out_s(2) := reg_array_h(10)
+   // io.out_s(2) := reg_array_h(10)
 
 
 }
@@ -655,37 +656,45 @@ io.out_s := reg_2
     //println(new(chisel3.stage.ChiselStage).emitVerilog(new sign_Calculator(32)))
     //def main(args: Array[String]): Unit = {
 
-        test(new house_HolderQR(3, 3, 32)) { c =>
+        test(new house_HolderQR(2, 2, 32)) { c =>
           c.io.col_1(0).poke("b00111111100000000000000000000000".U)
-          c.io.col_1(1).poke("b00111111100000000000000000000000".U)
-          c.io.col_1(2).poke("b01000000100000000000000000000000".U)
-          c.io.h_count.poke(1.U)
+          c.io.col_1(1).poke("b01000000100000000000000000000000".U)
+          //c.io.col_1(2).poke("b01000000100000000000000000000000".U)
+          c.io.h_count.poke(0.U)
           c.io.reg_array(0).poke("b00111111100000000000000000000000".U)
-          c.io.reg_array(1).poke("b00111111100000000000000000000000".U)
-          c.io.reg_array(2).poke("b01000000100000000000000000000000".U)
+          c.io.reg_array(1).poke("b01000000100000000000000000000000".U)
+          //c.io.reg_array(2).poke("b01000000100000000000000000000000".U)
           c.io.Tk.poke(true.B)
           c.io.Vk.poke(false.B)
           c.io.Tr.poke(false.B)
-          c.clock.step(1)
-          c.io.out_test.expect("b00111111100000000000000000000000".U)
-          //c.io.Tk.poke(false.B)
-          //c.io.Vk.poke(true.B)
-          //c.io.Tr.poke(false.B)
-          //c.clock.step(12)
-          //c.io.Tk.poke(false.B)
-          //c.io.Vk.poke(false.B)
-          //c.io.Tr.poke(true.B)
-          //c.clock.step(1)
-          //c.io.reg_arrays(0).poke("b00111111100000000000000000000000".U)
-          //c.io.reg_arrays(1).poke("b01000000100000000000000000000000".U)
-          //c.clock.step(1)
-          //c.io.reg_arrays(0).poke("b01000000101000000000000000000000".U)
-          //c.io.reg_arrays(1).poke("b00111111100000000000000000000000".U)
-          //c.clock.step(8)
-          //c.io.out_s(0).expect("b01000000100000000000000000000000".U)
+          c.clock.step(13)
           //c.io.out_test.expect("b00111111100000000000000000000000".U)
+
+          //c.io.out_test.expect("b00111111100000000000000000000000".U)
+          c.io.Tk.poke(false.B)
+          c.io.Vk.poke(true.B)
+          c.io.Tr.poke(false.B)
+          c.clock.step(12)
+
+         // c.io.out_test.expect("b00111111100000000000000000000000".U)
+          c.io.Tk.poke(false.B)
+          c.io.Vk.poke(false.B)
+          c.io.Tr.poke(true.B)
+          c.clock.step(1)
+          c.io.reg_arrays(0).poke("b00111111100000000000000000000000".U)
+          c.io.reg_arrays(1).poke("b01000000100000000000000000000000".U)
+          c.clock.step(1)
+          //c.io.reg_arrays(0).poke("b00111111100000000000000000000000".U)
+          //c.io.reg_arrays(1).poke("b00111111100000000000000000000000".U)
+          c.clock.step(15)
+         // c.io.out_s(0).expect("b01000000100000000000000000000000".U)
+          c.io.out_test.expect("b00111111100000000000000000000000".U)
           //c.io.in_a(2).poke("b00111111100000000000000000000000".U)
           //c.io.in_a(3).poke("b01000000100000000000000000000000".U)
+
+
+
+
 
 
       //test(new FP_dDot_2(32, 2)) { c =>
