@@ -19,7 +19,7 @@ import firrtl._
 
 import scala.collection._
 
-class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
+class house_HolderQR(row: Int, bitwidth: Int) extends Module {
   /*
   val io = IO(new Bundle() {
     val in_a = Input(Vec((row * col), UInt(bitwidth.W)))
@@ -250,7 +250,7 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
   })
   val reg_array_h = Reg(Vec((row), UInt(bitwidth.W)))
   val reg_arrays_h = Reg(Vec((row), UInt(bitwidth.W)))
-  val reg_arrays_h_b = Reg(Vec((col), UInt(bitwidth.W)))
+  val reg_arrays_h_b = Reg(Vec((row), UInt(bitwidth.W)))
   val reg_1 = Reg(UInt(bitwidth.W))
   val reg_2 = Reg(Vec((row), UInt(bitwidth.W)))
   val col_1 = Reg(Vec((row), UInt(bitwidth.W)))
@@ -278,7 +278,7 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
 
     //Mux 1 for ddot
     when(io.Tk === true.B) {
-      for (i <- 0 until col) {
+      for (i <- 0 until row) {
         //Starts testing the clock
         when(i.U < io.h_count) {
           w0(i) := 0.U(i)
@@ -291,20 +291,51 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
           w1(i) := io.col_1(i)
         }
 
-        if(i + 1 == col){
-
-        }
       }
       // TK flag
     }.elsewhen(io.Vk === true.B) {
-      w0 := reg_array_h
-      w1 := reg_array_h
       //VK flag
+      for (i <- 0 until row) {
+      when(i.U < io.h_count) {
+        w0(i) := 0.U(i)
+        w1(i) := 0.U(i)
+      }.elsewhen(i.U > io.h_count) {
+        w0(i) := reg_array_h(i)
+        w1(i) := reg_array_h(i)
+      }.otherwise {
+        w0(i) := reg_array_h(i)
+        w1(i) := reg_array_h(i)
+      }
+      }
     }
       .elsewhen(io.Tr === true.B) {
-        reg_2 := reg_array_h
-        w0 := reg_2
-        w1 := reg_arrays_h
+        //tr flag
+        for (i <- 0 until row) {
+          when(i.U < io.h_count) {
+            reg_2 (i) := 0.U(i)
+            reg_2 (i) := 0.U(i)
+          }.elsewhen(i.U > io.h_count) {
+            reg_2 (i) := reg_array_h(i)
+            reg_2 (i) := reg_array_h(i)
+          }.otherwise {
+            reg_2 (i) := reg_array_h(i)
+            reg_2 (i) := reg_array_h(i)
+          }
+        }
+        //zeros vk
+        for (i <- 0 until row) {
+          when(i.U < io.h_count) {
+            w0(i) := 0.U(i)
+            w1(i) := 0.U(i)
+          }.elsewhen(i.U > io.h_count) {
+            w0(i) := reg_array_h(i)
+            w1(i) := reg_arrays_h(i)
+          }.otherwise {
+            w0(i) := reg_array_h(i)
+            w1(i) := reg_arrays_h(i)
+          }
+        }
+        //sets the reg_arrays_col
       }
       .otherwise {
         for (i <- 0 until row) {
@@ -331,7 +362,7 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
     d2 := sqrt.io.out_s
     //sign
     //gets the correct Vk value
-
+    //test := reg_1
     sign.io.in_a := reg_array_h(io.h_count)
     sign.io.in_b := d2
     reg_1 := sign.io.out_s
@@ -345,8 +376,9 @@ class house_HolderQR(row: Int,col: Int, bitwidth: Int) extends Module {
     reg_array.io.in_a := reg_arrays_h
     // TESTER
     val d5_M = Module(new FP_multiplier(bitwidth))
-    val axpy = Module(new axpy(bitwidth, col))
-    test := reg_arrays_h_b(0)
+    val axpy = Module(new axpy(bitwidth, row))
+    test := reg_arrays_h_b(2)
+
     d5_M.io.in_a := tk
     d5_M.io.in_b := dDot.io.out_s
     axpy.io.in_a := d5_M.io.out_s
@@ -533,7 +565,6 @@ class sign_Calculator(bw:Int)extends Module{
 // checks sign bit
   when(io.in_a >= "b10000000000000000000000000000000".U){
     io.out_s := subber.out_s
-
   }
     .otherwise {
       io.out_s := adder.out_s
@@ -597,6 +628,8 @@ class reg_arrays(bw:Int,level:Int)extends Module {
     }
   }
   val reg_array_h = Reg(Vec(14, UInt(bw.W)))
+
+
   reg_array_h(0) := io.in_a(0)
   reg_array_h(1) := reg_array_h(0)
   reg_array_h(2) := reg_array_h(1)
@@ -613,7 +646,7 @@ class reg_arrays(bw:Int,level:Int)extends Module {
   reg_array_h(12) := reg_array_h(11)
   reg_array_h(13) := reg_array_h(12)
   io.out_s(1) := reg_array_h(10)
-   // io.out_s(2) := reg_array_h(10)
+    io.out_s(2) := io.in_a(2)
 
 
 }
@@ -656,150 +689,151 @@ io.out_s := reg_2
     //println(new(chisel3.stage.ChiselStage).emitVerilog(new sign_Calculator(32)))
     //def main(args: Array[String]): Unit = {
 
-        test(new house_HolderQR(2, 2, 32)) { c =>
+        test(new house_HolderQR(3, 32)) { c =>
           c.io.col_1(0).poke("b00111111100000000000000000000000".U)
-          c.io.col_1(1).poke("b01000000100000000000000000000000".U)
-          //c.io.col_1(2).poke("b01000000100000000000000000000000".U)
+          c.io.col_1(1).poke("b00111111100000000000000000000000".U)
+          c.io.col_1(2).poke("b00111111100000000000000000000000".U)
           c.io.h_count.poke(0.U)
           c.io.reg_array(0).poke("b00111111100000000000000000000000".U)
-          c.io.reg_array(1).poke("b01000000100000000000000000000000".U)
-          //c.io.reg_array(2).poke("b01000000100000000000000000000000".U)
+          c.io.reg_array(1).poke("b00111111100000000000000000000000".U)
+          c.io.reg_array(2).poke("b00111111100000000000000000000000".U)
           c.io.Tk.poke(true.B)
           c.io.Vk.poke(false.B)
           c.io.Tr.poke(false.B)
-          c.clock.step(13)
+          c.clock.step(14)
           //c.io.out_test.expect("b00111111100000000000000000000000".U)
 
-          //c.io.out_test.expect("b00111111100000000000000000000000".U)
-          c.io.Tk.poke(false.B)
-          c.io.Vk.poke(true.B)
-          c.io.Tr.poke(false.B)
-          c.clock.step(12)
 
-         // c.io.out_test.expect("b00111111100000000000000000000000".U)
-          c.io.Tk.poke(false.B)
-          c.io.Vk.poke(false.B)
-          c.io.Tr.poke(true.B)
-          c.clock.step(1)
-          c.io.reg_arrays(0).poke("b00111111100000000000000000000000".U)
-          c.io.reg_arrays(1).poke("b01000000100000000000000000000000".U)
-          c.clock.step(1)
-          //c.io.reg_arrays(0).poke("b00111111100000000000000000000000".U)
-          //c.io.reg_arrays(1).poke("b00111111100000000000000000000000".U)
-          c.clock.step(15)
-         // c.io.out_s(0).expect("b01000000100000000000000000000000".U)
-          c.io.out_test.expect("b00111111100000000000000000000000".U)
-          //c.io.in_a(2).poke("b00111111100000000000000000000000".U)
-          //c.io.in_a(3).poke("b01000000100000000000000000000000".U)
+c.io.Tk.poke(false.B)
+c.io.Vk.poke(true.B)
+c.io.Tr.poke(false.B)
+c.clock.step(12)
+           //c.io.out_test.expect("b00111111100000000000000000000000".U)
 
-
-
-
+c.io.Tk.poke(false.B)
+c.io.Vk.poke(false.B)
+c.io.Tr.poke(true.B)
+c.clock.step(1)
+c.io.reg_arrays(0).poke("b00111111100000000000000000000000".U)
+c.io.reg_arrays(1).poke("b00111111100000000000000000000000".U)
+c.io.reg_arrays(2).poke("b00111111100000000000000000000000".U)
+c.clock.step(1)
+c.io.reg_arrays(0).poke("b00111111100000000000000000000000".U)
+c.io.reg_arrays(1).poke("b01000000100000000000000000000000".U)
+c.io.reg_arrays(2).poke("b00111111100000000000000000000000".U)
+c.clock.step(8)
+// c.io.out_s(0).expect("b01000000100000000000000000000000".U)
+//c.io.out_test.expect("b00111111100000000000000000000000".U)
+//c.io.in_a(2).poke("b00111111100000000000000000000000".U)
+//c.io.in_a(3).poke("b01000000100000000000000000000000".U)
 
 
-      //test(new FP_dDot_2(32, 2)) { c =>
-      //c.io.in_a(0).poke("b00111111100000000000000000000000".U)
-      // c.io.in_b(0).poke("b01000000100000000000000000000000".U)
-      /*
-         c.io.in_a(1).poke("b00111111100000000000000000000000".U)
-         c.io.in_b(1).poke("b01000000100000000000000000000000".U)
-
-         c.io.in_a(2).poke("b01000000100000000000000000000000".U)
-         c.io.in_b(2).poke("b00111111100000000000000000000000".U)
-
-         c.io.in_a(3).poke("b00111111100000000000000000000000".U)
-         c.io.in_b(3).poke("b01000000100000000000000000000000".U)
-
-         c.io.in_a(4).poke("b00111111100000000000000000000000".U)
-         c.io.in_b(4).poke("b01000000100000000000000000000000".U)
-
-         c.io.in_a(5).poke("b00111111100000000000000000000000".U)
-         c.io.in_b(5).poke("b01000000100000000000000000000000".U)
-
-         c.io.in_a(6).poke("b00111111100000000000000000000000".U)
-         c.io.in_b(6).poke("b01000000100000000000000000000000".U)
-
-         c.io.in_a(7).poke("b00111111100000000000000000000000".U)
-         c.io.in_b(7).poke("b01000000100000000000000000000000".U)
-
-         c.io.in_b(8).poke("b01000000100000000000000000000000".U)
-         c.io.in_a(8).poke("b00111111100000000000000000000000".U)
-
-         c.io.in_b(9).poke("b01000000100000000000000000000000".U)
-         c.io.in_a(9).poke("b00111111100000000000000000000000".U)
-
-         c.io.in_b(10).poke("b01000000100000000000000000000000".U)
-         c.io.in_a(10).poke("b00111111100000000000000000000000".U)
-
-         c.io.in_b(11).poke("b01000000100000000000000000000000".U)
-         c.io.in_a(11).poke("b00111111100000000000000000000000".U)
 
 
-         c.io.in_a(12).poke("b00111111100000000000000000000000".U)
-         c.io.in_b(12).poke("b01000000100000000000000000000000".U)
 
-         //c.io.in_a(13).poke("b01000000100000000000000000000000".U)
-         //c.io.in_b(13).poke("b00111111100000000000000000000000".U)
+//test(new FP_dDot_2(32, 2)) { c =>
+//c.io.in_a(0).poke("b00111111100000000000000000000000".U)
+// c.io.in_b(0).poke("b01000000100000000000000000000000".U)
+/*
+c.io.in_a(1).poke("b00111111100000000000000000000000".U)
+c.io.in_b(1).poke("b01000000100000000000000000000000".U)
 
-         //c.io.in_a(14).poke("b00111111100000000000000000000000".U)
-         //c.io.in_b(14).poke("b01000000100000000000000000000000".U)
+c.io.in_a(2).poke("b01000000100000000000000000000000".U)
+c.io.in_b(2).poke("b00111111100000000000000000000000".U)
 
-         //c.io.in_a(15).poke("b01000000100000000000000000000000".U)
-         //c.io.in_b(15).poke("b00111111100000000000000000000000".U)
+c.io.in_a(3).poke("b00111111100000000000000000000000".U)
+c.io.in_b(3).poke("b01000000100000000000000000000000".U)
 
-         //c.io.in_a(16).poke("b00111111100000000000000000000000".U)
-         //c.io.in_b(16).poke("b01000000100000000000000000000000".U)
+c.io.in_a(4).poke("b00111111100000000000000000000000".U)
+c.io.in_b(4).poke("b01000000100000000000000000000000".U)
 
-         //c.io.in_a(17).poke("b00111111100000000000000000000000".U)
-         //c.io.in_b(17).poke("b01000000100000000000000000000000".U)
+c.io.in_a(5).poke("b00111111100000000000000000000000".U)
+c.io.in_b(5).poke("b01000000100000000000000000000000".U)
 
-         //c.io.in_a(18).poke("b00111111100000000000000000000000".U)
-         //c.io.in_b(18).poke("b01000000100000000000000000000000".U)
+c.io.in_a(6).poke("b00111111100000000000000000000000".U)
+c.io.in_b(6).poke("b01000000100000000000000000000000".U)
 
-         //c.io.in_a(19).poke("b00111111100000000000000000000000".U)
-         //c.io.in_b(19).poke("b01000000100000000000000000000000".U)
-         //c.io.in_a(20).poke("b00111111100000000000000000000000".U)
-         //c.io.in_b(20).poke("b01000000100000000000000000000000".U)
-         //c.io.in_b(21).poke("b01000000100000000000000000000000".U)
-         //c.io.in_a(21).poke("b00111111100000000000000000000000".U)
-         //c.io.in_b(22).poke("b01000000100000000000000000000000".U)
-         //c.io.in_a(22).poke("b00111111100000000000000000000000".U)
-         //c.io.in_b(23).poke("b01000000100000000000000000000000".U)
-         //c.io.in_a(23).poke("b00111111100000000000000000000000".U)
+c.io.in_a(7).poke("b00111111100000000000000000000000".U)
+c.io.in_b(7).poke("b01000000100000000000000000000000".U)
+
+c.io.in_b(8).poke("b01000000100000000000000000000000".U)
+c.io.in_a(8).poke("b00111111100000000000000000000000".U)
+
+c.io.in_b(9).poke("b01000000100000000000000000000000".U)
+c.io.in_a(9).poke("b00111111100000000000000000000000".U)
+
+c.io.in_b(10).poke("b01000000100000000000000000000000".U)
+c.io.in_a(10).poke("b00111111100000000000000000000000".U)
+
+c.io.in_b(11).poke("b01000000100000000000000000000000".U)
+c.io.in_a(11).poke("b00111111100000000000000000000000".U)
 
 
-          */
-      //  c.clock.step(10)
-      // c.io.out_s.expect("b01000001000000000000000000000000".U)
-      //}
+c.io.in_a(12).poke("b00111111100000000000000000000000".U)
+c.io.in_b(12).poke("b01000000100000000000000000000000".U)
 
-      // test(new house_Divider(32)) { c =>
-      // c.io.in_a.poke("b01000001100101111000110111101101".U)
-      //  c.clock.step(6)
-      // c.io.out_s.expect("b01000001000000000000000000000000".U)
-      //}
-      /*
+//c.io.in_a(13).poke("b01000000100000000000000000000000".U)
+//c.io.in_b(13).poke("b00111111100000000000000000000000".U)
+
+//c.io.in_a(14).poke("b00111111100000000000000000000000".U)
+//c.io.in_b(14).poke("b01000000100000000000000000000000".U)
+
+//c.io.in_a(15).poke("b01000000100000000000000000000000".U)
+//c.io.in_b(15).poke("b00111111100000000000000000000000".U)
+
+//c.io.in_a(16).poke("b00111111100000000000000000000000".U)
+//c.io.in_b(16).poke("b01000000100000000000000000000000".U)
+
+//c.io.in_a(17).poke("b00111111100000000000000000000000".U)
+//c.io.in_b(17).poke("b01000000100000000000000000000000".U)
+
+//c.io.in_a(18).poke("b00111111100000000000000000000000".U)
+//c.io.in_b(18).poke("b01000000100000000000000000000000".U)
+
+//c.io.in_a(19).poke("b00111111100000000000000000000000".U)
+//c.io.in_b(19).poke("b01000000100000000000000000000000".U)
+//c.io.in_a(20).poke("b00111111100000000000000000000000".U)
+//c.io.in_b(20).poke("b01000000100000000000000000000000".U)
+//c.io.in_b(21).poke("b01000000100000000000000000000000".U)
+//c.io.in_a(21).poke("b00111111100000000000000000000000".U)
+//c.io.in_b(22).poke("b01000000100000000000000000000000".U)
+//c.io.in_a(22).poke("b00111111100000000000000000000000".U)
+//c.io.in_b(23).poke("b01000000100000000000000000000000".U)
+//c.io.in_a(23).poke("b00111111100000000000000000000000".U)
+
+
+*/
+//  c.clock.step(10)
+// c.io.out_s.expect("b01000001000000000000000000000000".U)
+//}
+
+// test(new house_Divider(32)) { c =>
+// c.io.in_a.poke("b01000001100101111000110111101101".U)
+//  c.clock.step(6)
+// c.io.out_s.expect("b01000001000000000000000000000000".U)
+//}
+/*
 test(new axpy(32,2)) { c =>
-  c.io.in_a.poke("b01000001100101111000110111101101".U)
-  c.io.in_b(0).poke("b11000001100101111000110111101101".U)
-  c.io.in_b(1).poke("b01000001000100000000000000000000".U)
-  c.io.in_c(0).poke("b01000001100101111000110111101101".U)
-  c.io.in_c(1).poke("b01000001100101111000110111101101".U)
+c.io.in_a.poke("b01000001100101111000110111101101".U)
+c.io.in_b(0).poke("b11000001100101111000110111101101".U)
+c.io.in_b(1).poke("b01000001000100000000000000000000".U)
+c.io.in_c(0).poke("b01000001100101111000110111101101".U)
+c.io.in_c(1).poke("b01000001100101111000110111101101".U)
 
 
 
-  c.clock.step(2)
+c.clock.step(2)
 
-  c.io.out_s(0).expect("b01000001000000000000000000000000".U)
-  */
+c.io.out_s(0).expect("b01000001000000000000000000000000".U)
+*/
 
-      //}
-      println("SUCCESS!!")
+//}
+println("SUCCESS!!")
 
 
-      //}
-    }
-  }
+//}
+}
+}
 
 
 
