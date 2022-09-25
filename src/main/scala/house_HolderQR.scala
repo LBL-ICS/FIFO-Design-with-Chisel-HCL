@@ -636,17 +636,16 @@ class reg_arrays(bw:Int,level:Int)extends Module {
   reg_array_h(3) := reg_array_h(2)
   reg_array_h(4) := reg_array_h(3)
   reg_array_h(5) := reg_array_h(4)
-  reg_array_h(6) := reg_array_h(5)
-  io.out_s(0) := reg_array_h(3)
-  reg_array_h(7) := io.in_a(1)
+  reg_array_h(7) := reg_array_h(6)
   reg_array_h(8) := reg_array_h(7)
   reg_array_h(9) := reg_array_h(8)
   reg_array_h(10) := reg_array_h(9)
   reg_array_h(11) := reg_array_h(10)
   reg_array_h(12) := reg_array_h(11)
-  reg_array_h(13) := reg_array_h(12)
-  io.out_s(1) := reg_array_h(10)
-    io.out_s(2) := io.in_a(2)
+  io.out_s(0) := reg_array_h(5)
+for(i <- 1 until level) {
+  io.out_s(i) := io.in_a(i)
+}
 
 
 }
@@ -686,9 +685,15 @@ io.out_s := reg_2
   object tester_1 extends App {
 
 
+    test(new reg_arrays(32, 2)) { c =>
+      c.io.in_a(0).poke("b00111111100000000000000000000000".U)
+      c.io.in_a(1).poke("b00111111100000001000000000000000".U)
+      c.clock.step(12)
+      c.io.out_s(0).expect("b00111111100000000000000000000000".U)
+
     //println(new(chisel3.stage.ChiselStage).emitVerilog(new sign_Calculator(32)))
     //def main(args: Array[String]): Unit = {
-
+/*
         test(new house_HolderQR(3, 32)) { c =>
           c.io.col_1(0).poke("b00111111100000000000000000000000".U)
           c.io.col_1(1).poke("b00111111100000000000000000000000".U)
@@ -729,6 +734,8 @@ c.clock.step(8)
 
 
 
+
+ */
 
 
 //test(new FP_dDot_2(32, 2)) { c =>
