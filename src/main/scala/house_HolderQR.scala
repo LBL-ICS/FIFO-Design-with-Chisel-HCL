@@ -596,6 +596,15 @@ class axpy(bw:Int,level:Int)extends Module {
     }
   }
 
+
+  val reg_array_h = Reg(Vec((level), UInt(bw.W)))
+
+  for(i <- 0 until level){
+    reg_array_h(i) := io.in_c(i)
+
+  }
+
+
   val multiply_layer = for(i <- 0 until level)yield{
     val multiply = Module(new FP_multiplier(bw)).io
     multiply
@@ -611,7 +620,7 @@ class axpy(bw:Int,level:Int)extends Module {
   }
   for(i <- 0 until level){
     adder_layer(i).in_a :=  multiply_layer(i).out_s
-    adder_layer(i).in_b := io.in_c(i)
+    adder_layer(i).in_b := reg_array_h(i)
   }
 
 
@@ -681,15 +690,87 @@ io.out_s := reg_2
 
 
  */
+class first_In_First_Out(Size_of_Fifo:Int, Depth:Int, bw:Int)extends Module{
+  val io = IO{new Bundle() {
+    val write_in = Input(Vec((Depth), UInt(bw.W)))
+    val read_out = Output(Vec((Depth), UInt(bw.W)))
+    //val test = Output(UInt(bw.W))
+    //val test_1 = Output(Bool())
+    val read_enable = Input(Bool())
+    val write_enable = Input(Bool())
+  }}
+  val max = Size_of_Fifo
+  val total = Size_of_Fifo * Depth
+  val reg_array_Fifo = Reg(Vec((total), UInt(bw.W)))
+  //gives 3 counters, each with a max bitwidth of the size of the Fifo
+  val H_count = RegInit(0.U(bw.W))
+  val T_count = RegInit(0.U(bw.W))
+  val F_count = RegInit(0.U((max).W))
+  val emptyReg = RegInit(true.B)
+  val fullReg = RegInit(false.B)
+
+  when(F_count === 0.U){
+    emptyReg := true.B
+  }.otherwise{
+    emptyReg := false.B
+  }
+
+  when(F_count === (max).U){
+    fullReg := true.B
+  }.otherwise{
+    fullReg := false.B
+  }
+
+  when(io.write_enable && (fullReg =/= true.B)) {
+  F_count := F_count + 1.U
+      H_count := H_count + 1.U
+
+
+    for(i <- 0 to (Depth - 1)){
+      reg_array_Fifo((H_count% max.U)*Depth.U+i.U) := io.write_in(i)
+      //io.read_out(i) := io.read_out(i)
+    }
+
+
+    for(i <- 0 to (Depth - 1)){
+      io.read_out(i) := 0.U
+    }
+  }.elsewhen(io.read_enable && (emptyReg =/= true.B)) {
+    F_count := F_count - 1.U
+
+      T_count := T_count + 1.U
+
+
+    for(i <- 0 to (Depth - 1)){
+      io.read_out(i) := reg_array_Fifo(((T_count-1.U) % max.U)*Depth.U+i.U)
+    }
+
+
+  }.otherwise {
+    for(i <- 0 to (Depth - 1)){
+      io.read_out(i) := 0.U
+    }
+  }
+
+    //io.test := reg_array_Fifo(0)
+    //io.test_1 := fullReg
+
+
+
+    }
+
+
+
+
 
   object tester_1 extends App {
 
 
-    test(new reg_arrays(32, 2)) { c =>
-      c.io.in_a(0).poke("b00111111100000000000000000000000".U)
-      c.io.in_a(1).poke("b00111111100000001000000000000000".U)
-      c.clock.step(12)
-      c.io.out_s(0).expect("b00111111100000000000000000000000".U)
+    //test(new reg_arrays(32, 2)) { c =>
+     // c.io.in_a(0).poke("b00111111100000000000000000000000".U)
+      //c.io.in_a(1).poke("b00111111100000001000000000000000".U)
+      //c.clock.step(12)
+      //c.io.out_s(0).expect("b00111111100000000000000000000000".U)
 
     //println(new(chisel3.stage.ChiselStage).emitVerilog(new sign_Calculator(32)))
     //def main(args: Array[String]): Unit = {
@@ -820,26 +901,145 @@ c.io.in_b(12).poke("b01000000100000000000000000000000".U)
 // c.io.out_s.expect("b01000001000000000000000000000000".U)
 //}
 /*
-test(new axpy(32,2)) { c =>
-c.io.in_a.poke("b01000001100101111000110111101101".U)
-c.io.in_b(0).poke("b11000001100101111000110111101101".U)
-c.io.in_b(1).poke("b01000001000100000000000000000000".U)
-c.io.in_c(0).poke("b01000001100101111000110111101101".U)
-c.io.in_c(1).poke("b01000001100101111000110111101101".U)
+test(new axpy(32,4)) { c =>
+  c.io.in_a.poke("b01000000100000000000000000000000".U)
+c.io.in_a.poke("b01000000100000000000000000000000".U)
+c.io.in_b(0).poke("b01000000100000000000000000000000".U)
+c.io.in_b(1).poke("b01000000100000000000000000000000".U)
+  c.io.in_b(2).poke("b01000000100000000000000000000000".U)
+  c.io.in_b(3).poke("b00111111100000000000000000000000".U)
+c.io.in_c(0).poke("b00111111100000000000000000000000".U)
+c.io.in_c(1).poke("b00111111100000000000000000000000".U)
+  c.io.in_c(2).poke("b00111111100000000000000000000000".U)
+  c.io.in_c(3).poke("b01000000100000000000000000000000".U)
+c.clock.step(1)
+  c.io.in_c(0).poke("b01000000100000000000000000000000".U)
+  c.io.in_c(1).poke("b01000000100000000000000000000000".U)
+  c.io.in_c(2).poke("b00111111100000000000000000000000".U)
+  c.io.in_c(3).poke("b00111111100000000000000000000000".U)
+  c.clock.step(2)
+
+c.io.out_s(3).expect("b01000001000000000000000000000000".U)
 
 
-
-c.clock.step(2)
-
-c.io.out_s(0).expect("b01000001000000000000000000000000".U)
+}
 */
 
-//}
-println("SUCCESS!!")
+    test(new first_In_First_Out(5,5,32)) { c =>
+      c.io.write_in(0).poke(1.U)
+      c.io.write_in(1).poke(1.U)
+      c.io.write_in(2).poke(1.U)
+      c.io.write_in(3).poke(1.U)
+      c.io.write_in(4).poke(1.U)
+
+      c.io.write_enable.poke(true.asBool)
+      c.clock.step(1)
+      c.io.write_enable.poke(false.asBool)
+      c.clock.step(1)
+
+      c.io.write_in(0).poke(2.U)
+      c.io.write_in(1).poke(2.U)
+      c.io.write_in(2).poke(2.U)
+      c.io.write_in(3).poke(2.U)
+      c.io.write_in(4).poke(2.U)
+
+      c.io.write_enable.poke(true.asBool)
+      c.clock.step(1)
+      c.io.write_enable.poke(false.asBool)
+      c.clock.step(1)
 
 
+      c.io.write_in(0).poke(3.U)
+      c.io.write_in(1).poke(3.U)
+      c.io.write_in(2).poke(3.U)
+      c.io.write_in(3).poke(3.U)
+      c.io.write_in(4).poke(3.U)
+
+      c.io.write_enable.poke(true.asBool)
+      c.clock.step(1)
+      c.io.write_enable.poke(false.asBool)
+      c.clock.step(1)
+
+
+      c.io.write_in(0).poke(4.U)
+      c.io.write_in(1).poke(4.U)
+      c.io.write_in(2).poke(4.U)
+      c.io.write_in(3).poke(4.U)
+      c.io.write_in(4).poke(4.U)
+
+      c.io.write_enable.poke(true.asBool)
+      c.clock.step(1)
+      c.io.write_enable.poke(false.asBool)
+      c.clock.step(1)
+
+
+      c.io.write_in(0).poke(5.U)
+      c.io.write_in(1).poke(5.U)
+      c.io.write_in(2).poke(5.U)
+      c.io.write_in(3).poke(5.U)
+      c.io.write_in(4).poke(5.U)
+
+      c.io.write_enable.poke(true.asBool)
+      c.clock.step(1)
+      c.io.write_enable.poke(false.asBool)
+      c.clock.step(1)
+
+      c.io.write_in(0).poke(6.U)
+      c.io.write_in(1).poke(6.U)
+      c.io.write_in(2).poke(6.U)
+      c.io.write_in(3).poke(6.U)
+      c.io.write_in(4).poke(6.U)
+
+      c.io.write_enable.poke(true.asBool)
+      c.clock.step(1)
+      c.io.write_enable.poke(false.asBool)
+      c.clock.step(1)
+
+
+
+      c.io.read_enable.poke(true.asBool)
+      c.clock.step(1)
+      c.io.read_out(0).expect(1.U)
+      c.io.read_enable.poke(false.asBool)
+      c.clock.step(1)
+
+      c.io.read_enable.poke(true.asBool)
+      c.clock.step(1)
+      c.io.read_out(0).expect(2.U)
+      c.io.read_enable.poke(false.asBool)
+      c.clock.step(1)
+
+      c.io.read_enable.poke(true.asBool)
+      c.clock.step(1)
+      c.io.read_out(0).expect(3.U)
+      c.io.read_enable.poke(false.asBool)
+      c.clock.step(1)
+
+      c.io.read_enable.poke(true.asBool)
+      c.clock.step(1)
+      c.io.read_out(0).expect(4.U)
+      c.io.read_enable.poke(false.asBool)
+      c.clock.step(1)
+
+      c.io.read_enable.poke(true.asBool)
+      c.clock.step(1)
+      c.io.read_out(0).expect(5.U)
+      c.io.read_enable.poke(false.asBool)
+      c.clock.step(1)
+
+      c.io.read_enable.poke(true.asBool)
+      c.clock.step(1)
+      c.io.read_out(0).expect(0.U)
+      c.io.read_enable.poke(false.asBool)
+      c.clock.step(1)
+
+
+    }
+    println("SUCCESS!!")
+  //println(new(chisel3.stage.ChiselStage).emitVerilog(new axpy(32,256)))
+
 //}
-}
+
 }
 
 

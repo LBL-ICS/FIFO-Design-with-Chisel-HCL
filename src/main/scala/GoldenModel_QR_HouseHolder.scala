@@ -1,9 +1,10 @@
-import FloatingPointDesigns.FPArithmetic.FP_multiplier
-import chisel3.Module
 
+import scala.io.Source
+import scala.math.sqrt
+import java.io.PrintWriter
 import scala.math.sqrt
 
-class GoldenModel_QR_HouseHolder(row: Int, col: Int) {
+class GoldenModel_QR_HouseHolder(row: 3, col: 3) {
   // defines the array, and the parameters
   var a, b, d = 0.0 //a for col, b for rows, d for dot product
   var n = col //col
@@ -25,11 +26,15 @@ class GoldenModel_QR_HouseHolder(row: Int, col: Int) {
   // sets up the array for testing
   for (a <- 0 until m) {
     for (b <- 0 until n) {
-      myMatrix(a)(b) = 1;
+      if(b == a){
+        myMatrix(a)(b) = 4;
+      }
+      else {
+        myMatrix(a)(b) = 1;
+      }
     }
   }
-  myMatrix(1)(1) = 4
-  myMatrix(2)(2) = 7
+
 
 
 
@@ -44,6 +49,10 @@ class GoldenModel_QR_HouseHolder(row: Int, col: Int) {
   for (k <- 1 until n) {
     //hqr1 get the next section x
     kr = k - 1
+
+
+
+
     for (b <- 0 until m) {
       holder(b) = myMatrix(b)(kr)
       //(holder(b))
@@ -88,6 +97,9 @@ class GoldenModel_QR_HouseHolder(row: Int, col: Int) {
     else {
       tk = -2 / d3
     }
+
+
+
     for (j <- k until n + 1 ) {
       jr = j - 1
       //hqr8
