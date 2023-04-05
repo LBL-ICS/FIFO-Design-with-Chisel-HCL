@@ -41,7 +41,7 @@ class first_In_First_Out(Size_of_Fifo:Int, Depth:Int, bw:Int)extends Module{
     fullReg := false.B
   }
 
-
+ // Full code
   when(io.write_enable && (fullReg =/= true.B) && !io.read_enable) {
   F_count := F_count + 1.U
       H_count := H_count + 1.U
